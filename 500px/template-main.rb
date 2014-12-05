@@ -585,7 +585,7 @@ class U500pxFileUploader
   include FormatBytesizeLogic
   include PreflightWaitAccountParametersLogic
 
-  attr_accessor :account_parameters_dirty, :authenticated_protocol
+  attr_accessor :account_parameters_dirty
   attr_reader :num_files, :ui
 
   DLG_SETTINGS_KEY = :upload_dialog
@@ -735,31 +735,6 @@ class U500pxFileUploader
     update_account_combo_list
     select_active_account
     account_parameters_changed
-  end
-
-  def authenticated_protocol
-    unless @authenticated_protocol
-      prot = nil
-      begin
-
-        prot = U500pxUploadProtocol.new(@bridge, {
-                                          :connection_settings_serializer => @conn_settings_ser,
-                                          :dialog => self
-                                        })
-
-        prot.authenticate_from_settings({
-                                          :token => account.auth_token,
-                                          :token_secret => account.auth_token_secret
-                                        }) if tokens_present?
-
-      rescue Exception => ex
-        display_message_box "Unable to login to 500px server. Please click the Connections button.\nError: #{ex.message}"
-        (prot.close if prot) rescue nil
-        raise
-      end
-    end
-
-    @authenticated_protocol ||= prot
   end
 
   def account
