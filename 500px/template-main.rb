@@ -28,6 +28,9 @@ class U500pxConnectionSettingsUI
     create_control(:setting_delete_button,    Button,       dlg, :label=>"Delete Account")
     create_control(:setting_add_button,       Button,       dlg, :label=>"Add/Replace Account")
     create_control(:add_account_instructions, Static,       dlg, :label=>"Note on ading an account: If you have an active 500px session in your browser, 500px will authorize Photo Mechanic for the username associated with that session. Otherwise, 500px will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code into the dialog. The account name will be determined automatically from your 500px user name.")
+    create_control(:code_group_box,           GroupBox,    dlg, :label=>"Verification code:")
+    create_control(:code_edit,                EditControl, dlg, :value=>"Enter verification code", :persist=>false, :enabled=>false)
+    create_control(:code_verify_button,       Button,      dlg, :label=>"Verify Code", :enabled=>false)
   end
 
   def layout_controls(container)
@@ -41,7 +44,17 @@ class U500pxConnectionSettingsUI
     c << @setting_delete_button.layout(0, c.base, "50%-5", eh)
     c << @setting_add_button.layout("-50%+5", c.base, -1, eh)
     c.pad_down(5).mark_base
-    c << add_account_instructions.layout(0, c.base, -1, 4*sh)
+    c << add_account_instructions.layout(0, c.base, -1, 6*sh)
+    c.pad_down(15).mark_base
+    container.layout_with_contents(@code_group_box, 0, c.base, -1, -1) do |cc|
+      cc.set_prev_right_pad(5).inset(15,20,-20,-5).mark_base
+      cc << @code_edit.layout(0, cc.base, -125, eh)
+      cc << @code_verify_button.layout(cc.prev_right+5, cc.base, 120, eh)
+      cc.pad_down(5).mark_base
+      cc.mark_base.size_to_base
+    end
+    c.pad_down(5).mark_base
+    c.mark_base.size_to_base
   end
 end
 
@@ -127,6 +140,7 @@ class U500pxConnectionSettings
     @ui.setting_name_combo.on_sel_change { handle_sel_change }
     @ui.setting_delete_button.on_click { handle_delete_button }
     @ui.setting_add_button.on_click { handle_add_account }
+    @ui.code_verify_button.on_click { handle_code_verification }
   end
 
   def layout_controls(container)
@@ -226,14 +240,37 @@ class U500pxConnectionSettings
   end
 
   def handle_add_account
-    save_account_callback = lambda do |client|
-      if client.authenticated?
-        @settings[client.name]  = SettingsData.new(client.name, client.access_token,client.access_token_secret)
-        add_account_to_dropdown(client.name)
-      end
-    end
-    client.get_application_authorization(save_account_callback)
+    # Enable code entry, disable delete and add
+    @ui.code_verify_button.enable(true)
+    @ui.code_edit.enable(true)
+    @ui.code_edit.set_text("")
+    @ui.setting_delete_button.enable(false)
+    @ui.setting_add_button.enable(false)
+    client.reset!
+    client.fetch_request_token
+    client.launch_application_authorization_in_browser
     @prev_selected_settings_name = nil
+  end
+
+  def handle_code_verification
+    code = @ui.code_edit.get_text.strip
+    Dlg::MessageBox.ok("Please enter a non-blank code.", Dlg::MessageBox::MB_ICONEXCLAMATION) and return if code.empty?
+
+    begin
+      result = client.get_access_token(code)
+      @settings[client.name]  = SettingsData.new(client.name, client.access_token, client.access_token_secret)
+      add_account_to_dropdown(client.name)
+    rescue
+      # Note: A failed verification requires a complete new round of authorisation!
+      Dlg::MessageBox.ok("Failed to verify code, please retry to add the account.", Dlg::MessageBox::MB_ICONEXCLAMATION)
+    end
+
+    # Disable code entry, enable delete and add
+    @ui.code_verify_button.enable(false)
+    @ui.code_edit.enable(false)
+    @ui.code_edit.set_text("Verified #{client.name}")
+    @ui.setting_delete_button.enable(true)
+    @ui.setting_add_button.enable(true)
   end
 
   def handle_delete_button
@@ -249,10 +286,6 @@ class U500pxConnectionSettings
     end
   end
 end
-
-
-################################################################################
-
 
 class U500pxFileUploaderUI
 
@@ -913,99 +946,6 @@ class U500pxFileUploader
   end
 end
 
-class U500pxCodeVerifierDialog < Dlg::DynModalChildDialog
-
-  include PM::Dlg
-  include CreateControlHelper
-
-  attr_accessor :access_token, :access_token_secret, :name
-
-  def initialize(api_bridge, client, dialog_end_callback)
-    @bridge = api_bridge
-    @access_token = nil
-    @access_token_secret = nil
-    @name = "Unknown"
-    @client = client
-    @dialog_end_callback = dialog_end_callback
-    super()
-  end
-
-  def init_dialog
-    dlg = self
-    dlg.set_window_position_key("U500pxCodeVerifierDialogT")
-    dlg.set_window_position(50, 200, 300, 160)
-    title = "Verification code"
-    dlg.set_window_title(title)
-
-    create_control(:code_static,   Static,      dlg, :label=>"Enter the verification code:")
-    create_control(:code_edit,     EditControl, dlg, :value=>"", :persist=>false)
-    create_control(:submit_button, Button,      dlg, :label=>"Submit", :does=>"ok")
-    create_control(:cancel_button, Button,      dlg, :label=>"Cancel", :does=>"cancel")
-
-    @submit_button.on_click { get_access_token }
-    @cancel_button.on_click { closebox_clicked }
-
-    layout_controls
-    instantiate_controls
-    show(true)
-  end
-
-  def destroy_dialog!
-    @dialog_end_callback.call(@access_token, @access_token_secret, @name) if @dialog_end_callback
-    super
-  end
-
-  def layout_controls
-    sh, eh = 20, 24
-
-    dlg = self
-    client_width, client_height = dlg.get_clientrect_size
-    c = LayoutContainer.new(0, 0, client_width, client_height)
-    c.inset(10, 20, -10, -5)
-
-    c << @code_static.layout(0, c.base, -1, sh)
-    c.pad_down(0).mark_base
-    c << @code_edit.layout(0, c.base, -1, eh)
-    c.pad_down(5).mark_base
-
-    bw = 80
-    c << @submit_button.layout(-(2*bw+3), -eh, bw, eh)
-    c << @cancel_button.layout(-bw, -eh, bw, eh)
-  end
-
-  protected
-
-  def code_value
-    @code_edit.get_text.strip
-  end
-
-  def code_value_empty?
-    code_value.empty?
-  end
-
-  def notify_code_value_blank
-    Dlg::MessageBox.ok("Please enter a non-blank code.", Dlg::MessageBox::MB_ICONEXCLAMATION)
-  end
-
-  def get_access_token
-    notify_code_value_blank and return if code_value_empty?
-
-    begin
-      oauth_verifier = code_value
-      result = @client.get_access_token(oauth_verifier)
-      store_access_settings(result)
-    rescue StandardError => ex
-      Dlg::MessageBox.ok("Failed to authorize with 500px. Error: #{ex.message}", Dlg::MessageBox::MB_ICONEXCLAMATION)
-    ensure
-      end_dialog(IDOK)
-    end
-  end
-
-  def store_access_settings(result)
-    @access_token, @access_token_secret, @name = result
-  end
-end
-
 class U500pxClient
   BASE_URL = "https://api.500px.com/v1/"
   API_KEY = 'w7c3g81Jm0Adz8xKaQKYmptq6TQgpMCB8RRcBb8H'
@@ -1023,13 +963,6 @@ class U500pxClient
     @name = nil
   end
 
-  def get_application_authorization(callback)
-    reset!
-    fetch_request_token
-    launch_application_authorization_in_browser
-    open_code_entry_dialog(callback)
-  end
-
   def fetch_request_token
     response = post('oauth/request_token')
 
@@ -1043,17 +976,6 @@ class U500pxClient
     fetch_request_token unless @access_token
     authorization_url = "https://api.500px.com/v1/oauth/authorize?oauth_token=#{@access_token}"
     @bridge.launch_url(authorization_url)
-  end
-
-  def open_code_entry_dialog(callback)
-    callback_a = lambda do |token, token_secret, name|
-      store_settings_data(token, token_secret, name)
-      callback.call(self)
-      # update_ui
-    end
-    cdlg = U500pxCodeVerifierDialog.new(@bridge, self, callback_a)
-    cdlg.instantiate!
-    cdlg.request_deferred_modal
   end
 
   def get_access_token(verifier)
