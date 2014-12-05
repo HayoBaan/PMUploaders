@@ -27,7 +27,7 @@ class U500pxConnectionSettingsUI
     create_control(:setting_name_combo,       ComboBox,     dlg, :editable=>false, :sorted=>true, :persist=>false)
     create_control(:setting_delete_button,    Button,       dlg, :label=>"Delete Account")
     create_control(:setting_add_button,       Button,       dlg, :label=>"Add/Replace Account")
-    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on ading an account: If you have an active 500px session in your browser, 500px will authorize Photo Mechanic for the username associated with that session. Otherwise, 500px will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code into the dialog. The account name will be determined automatically from your 500px user name.")
+    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on ading an account: If you have an active 500px session in your browser, 500px will authorize Photo Mechanic for the account associated with that session. Otherwise, 500px will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code below and press the Verify Code button. The account name will be determined automatically from your 500px user name.")
     create_control(:code_group_box,           GroupBox,    dlg, :label=>"Verification code:")
     create_control(:code_edit,                EditControl, dlg, :value=>"Enter verification code", :persist=>false, :enabled=>false)
     create_control(:code_verify_button,       Button,      dlg, :label=>"Verify Code", :enabled=>false)
