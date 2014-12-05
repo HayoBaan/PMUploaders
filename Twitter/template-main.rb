@@ -17,35 +17,32 @@ class TwitterConnectionSettingsUI
 
   def create_controls(parent_dlg)
     dlg = parent_dlg
-    create_control(:setting_name_static,    Static,       dlg, :label=>"Your Accounts:")
-    create_control(:setting_name_combo,     ComboBox,     dlg, :editable=>false, :sorted=>true, :persist=>false)
-    create_control(:setting_delete_btn,     Button,       dlg, :label=>"Delete")
-    create_control(:add_account_instructions,    Static,       dlg, :label=>"Note: If you have an active Twitter session in your browser, Twitter will authorize Photo Mechanic for the username associated with that session. Otherwise, Twitter will prompt you to login.")
-    create_control(:add_account_button,     Button,       dlg, :label=>"Add Account")
+    create_control(:setting_name_static,      Static,       dlg, :label=>"Your Accounts:")
+    create_control(:setting_name_combo,       ComboBox,     dlg, :editable=>false, :sorted=>true, :persist=>false)
+    create_control(:setting_delete_button,    Button,       dlg, :label=>"Delete Account")
+    create_control(:setting_add_button,       Button,       dlg, :label=>"Add/Replace Account")
+    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on ading an account: If you have an active Twitter session in your browser, Twitter will authorize Photo Mechanic for the account associated with that session. Otherwise, Twitter will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code into the dialog. The account name will be determined automatically from your Twitter user name.")
   end
 
   def layout_controls(container)
     sh, eh = 20, 24
     c = container
-    c.set_prev_right_pad(5).inset(10,10,-10,-10).mark_base
+    c.set_prev_right_pad(5).inset(10,10,0,-10).mark_base
     c << @setting_name_static.layout(0, c.base, -1, sh)
     c.pad_down(0).mark_base
-    c << @setting_name_combo.layout(0, c.base, -150, eh)
-      c << @setting_delete_btn.layout(-140, c.base, -80, eh)
-    c.pad_down(0).mark_base
-    c.set_prev_right_pad(5).inset(10,30,-10,-10).mark_base
-    c << add_account_instructions.layout(0, c.base, -1, 3*sh)
-    c.pad_down(0).mark_base
-    c.set_prev_right_pad(5).inset(10,30,-10,-10).mark_base
-    c << @add_account_button.layout(0, c.base, -340, eh)
-    c.pad_down(0).mark_base
+    c << @setting_name_combo.layout(0, c.base, -1, eh)
+    c.pad_down(5).mark_base
+    c << @setting_delete_button.layout(0, c.base, "50%-5", eh)
+    c << @setting_add_button.layout("-50%+5", c.base, -1, eh)
+    c.pad_down(5).mark_base
+    c << add_account_instructions.layout(0, c.base, -1, 4*sh)
   end
 end
 
 class TwitterConnectionSettings
   include PM::ConnectionSettingsTemplate
 
-  DLG_SETTINGS_KEY = :connection_settings_dialog_01
+  DLG_SETTINGS_KEY = :connection_settings_dialog
 
   def self.template_display_name  # template name shown in dialog list box
     TEMPLATE_DISPLAY_NAME
@@ -70,25 +67,25 @@ class TwitterConnectionSettings
   end
 
   class SettingsData
-    attr_accessor :auth_token, :auth_token_secret, :user_name
+    attr_accessor :auth_token, :auth_token_secret
+
+    def initialize(name, token, token_secret)
+      @account_name = name
+      @auth_token = token
+      @auth_token_secret = token_secret
+      self
+    end
+
+    def appears_valid?
+      return ! (@account_name.nil? || @account_name.empty? || @auth_token.nil? || @auth_token.empty? || @auth_token_secret.nil? || @auth_token_secret.empty?)
+    rescue
+      false
+    end
 
     def self.serialize_settings_hash(settings)
       out = {}
-      settings.each_pair do |name, settings_values|
-        if settings_values.is_a? Hash
-          user_name = settings_values[:user_name]
-          out[user_name] = [settings_values[:auth_token_secret], user_name, settings_values[:auth_token]]
-        else
-          # todo: make sure settings_values type is always the same in order to avoid this type checking
-          user_name = if settings_values.user_name.is_a?(String)
-                        settings_values.user_name
-                      elsif settings_values.user_name.is_a?(Integer)
-                        name
-                      else
-                        settings_values.user_name[0]
-                      end
-          out[user_name] = [settings_values.auth_token_secret, user_name, settings_values.auth_token]
-        end
+      settings.each_pair do |key, dat|
+        out[key] = [dat.auth_token, dat.auth_token_secret]
       end
       out
     end
@@ -96,39 +93,18 @@ class TwitterConnectionSettings
     def self.deserialize_settings_hash(input)
       settings = {}
       input.each_pair do |key, dat|
-        token_secret, user_name, token = dat
-        settings[key] = SettingsData.new({
-          :auth_token => token,
-          :auth_token_secret => token_secret,
-          :user_name => user_name
-        })
+        token, token_secret = dat
+        settings[key] = SettingsData.new(key, token, token_secret)
       end
       settings
     end
 
-    def initialize(args = {})
-      @auth_token = args[:auth_token]
-      @auth_token_secret = args[:auth_token_secret]
-      @user_name = args[:user_name]
-      self
-    end
-
-    def values
-      [auth_token, auth_token_secret, user_name]
-    end
-
-    def appears_valid?
-      !@auth_token.nil? && !@auth_token.empty? && !@auth_token_secret.nil? && !@auth_token_secret.empty?
-    rescue
-      false
-    end
   end
 
   def initialize(pm_api_bridge)
     @bridge = pm_api_bridge
     @prev_selected_settings_name = nil
     @settings = {}
-    @current_name = ''
   end
 
   def settings_selected_item
@@ -142,10 +118,9 @@ class TwitterConnectionSettings
   end
 
   def add_event_handlers
-    @ui.setting_name_combo.on_edit_change { handle_rename_selected }
     @ui.setting_name_combo.on_sel_change { handle_sel_change }
-    @ui.add_account_button.on_click { handle_add_account }
-    @ui.setting_delete_btn.on_click { handle_delete_button }
+    @ui.setting_delete_button.on_click { handle_delete_button }
+    @ui.setting_add_button.on_click { handle_add_account }
   end
 
   def layout_controls(container)
@@ -158,9 +133,8 @@ class TwitterConnectionSettings
 
   def save_state(serializer)
     return unless @ui
-    # save_current_values_to_settings
     self.class.store_settings_data(serializer, @settings)
-    serializer.store(DLG_SETTINGS_KEY, :selected_item, @current_name)
+    serializer.store(DLG_SETTINGS_KEY, :selected_item, current_account_name)
   end
 
   def restore_state(serializer)
@@ -169,7 +143,6 @@ class TwitterConnectionSettings
     select_previously_selected_account(serializer)
     select_first_account_if_none_selected
     store_selected_account
-
     load_current_values_from_settings
   end
 
@@ -201,17 +174,10 @@ class TwitterConnectionSettings
   end
 
   def save_current_values_to_settings(params={:name=>nil, :replace=>true})
-    key = params[:name] || @current_name
+    key = params[:name] || current_account_name
 
     if key && key === String
-      ensure_name_does_not_collide(key) unless params[:replace]
-
-      @settings[key] ||= SettingsData.new({
-        :auth_token => nil,
-        :auth_token_secret => nil,
-        :user_name => nil
-      })
-
+      @settings[key] ||= SettingsData.new(key, nil, nil)
       key
     end
   end
@@ -220,38 +186,8 @@ class TwitterConnectionSettings
     @ui.setting_name_combo.get_selected_item_text.to_s
   end
 
-  def ensure_name_does_not_collide(current_name)
-    if current_name.to_s.empty?
-      return "" unless current_values_worth_saving?
-      current_name = find_non_colliding_name("Untitled")
-    else
-      current_name = find_non_colliding_name(current_name)
-    end
-  end
-
   def load_current_values_from_settings
-    cur_name = current_account_name.to_s
-    data = @settings[cur_name]
-  end
-
-  def current_values_worth_saving?
-    ! (current_account_name.empty? && @current_name.empty?)
-  end
-
-  def find_non_colliding_name(want_name)
-    i = 1
-    new_name = want_name
-    while @ui.setting_name_combo.has_item? new_name
-      i += 1
-      new_name = "#{want_name} #{i}"
-    end
-    new_name
-  end
-
-  def rename_in_settings(old_name, new_name)
-    data = @settings[old_name]
-    @settings.delete old_name
-    @settings[new_name] = data
+    data = @settings[current_account_name]
   end
 
   def delete_in_settings(name)
@@ -259,34 +195,10 @@ class TwitterConnectionSettings
     @deleted = true
   end
 
-  def handle_rename_selected
-    had_prev = ! @prev_selected_settings_name.nil?
-    cur_name = @ui.setting_name_combo.get_text.to_s
-    if cur_name != @prev_selected_settings_name
-      if had_prev
-        @ui.setting_name_combo.remove_item @prev_selected_settings_name
-      end
-
-      return "" if cur_name.strip.empty? && !current_values_worth_saving?
-      cur_name = "Untitled" if cur_name.strip.empty?
-      new_name = find_non_colliding_name(cur_name)
-
-      if had_prev
-        rename_in_settings(@prev_selected_settings_name, new_name)
-      else
-        saved_name = save_current_values_to_settings(:name=>new_name, :replace=>true)
-        return "" unless !saved_name.empty?
-      end
-      @ui.setting_name_combo.add_item new_name
-      @prev_selected_settings_name = new_name
-      cur_name = new_name
-    end
-    cur_name
-  end
-
   def add_account_to_dropdown(name = nil)
     save_current_values_to_settings(:name => name.to_s, :replace=>true)
     @ui.setting_name_combo.add_item(name.to_s)
+    @ui.setting_name_combo.set_selected_item(name.to_s)
   end
 
   def handle_sel_change
@@ -310,19 +222,11 @@ class TwitterConnectionSettings
   def handle_add_account
     save_account_callback = lambda do |client|
       if client.authenticated?
-        @current_name = key = client.user_name
-
-        @settings[key]  = SettingsData.new({
-          :auth_token => client.access_token,
-          :auth_token_secret => client.access_token_secret,
-          :user_name => client.user_name
-        })
-
-        add_account_to_dropdown(key)
+        @settings[client.name]  = SettingsData.new(client.name, client.access_token,client.access_token_secret)
+        add_account_to_dropdown(client.name)
       end
     end
-
-    client.launch_pincode_authorization(save_account_callback)
+    client.get_application_authorization(save_account_callback)
     @prev_selected_settings_name = nil
   end
 
@@ -353,10 +257,6 @@ class TwitterFileUploaderUI
   SOURCE_RAW_LABEL = "Use the RAW"
   SOURCE_JPEG_LABEL = "Use the JPEG"
 
-  DEST_EXISTS_UPLOAD_ANYWAY_LABEL = "Upload file anyway (files of same name can safely coexist)"
-  DEST_EXISTS_RENAME_LABEL = "Rename file before uploading"
-  DEST_EXISTS_SKIP_LABEL = "Skip file (do not upload)"
-
   def initialize(pm_api_bridge)
     @bridge = pm_api_bridge
   end
@@ -369,83 +269,81 @@ class TwitterFileUploaderUI
     dlg = parent_dlg
 
     create_control(:dest_account_group_box,     GroupBox,       dlg, :label=>"Destination Twitter Account:")
-    create_control(:dest_account_static,        Static,         dlg, :label=>"Account:", :align=>"right")
+    create_control(:dest_account_static,        Static,         dlg, :label=>"Account")
     create_control(:dest_account_combo,         ComboBox,       dlg, :sorted=>true, :persist=>false)
-    create_control(:handle_add_account,   Button,         dlg, :label=>"Authorize...")
-    create_control(:tweet_static, Static,       dlg, :label=> "Compose Tweet:", :align => 'right')
-    create_control(:tweet_edit, EditControl,       parent_dlg, :value=> "", :multiline=>true, :persist=> false, :align => 'right')
-    create_control(:tweet_length_static, Static,       dlg, :label=> "126", :align => 'left')
 
-    create_control(:transmit_group_box,         GroupBox,       dlg, :label=>"Transmit:")
-    create_control(:send_original_radio,        RadioButton,    dlg, :label=>"Original Photos", :checked=>true)
-    create_control(:send_jpeg_radio,            RadioButton,    dlg, :label=>"Saved as JPEG")
+    create_control(:tweet_group_box,            GroupBox,       dlg, :label=> "Tweet:")
+    #    create_control(:tweet_static,               Static,         dlg, :label=> "Compose Tweet:", :align => 'right')
+    create_control(:tweet_edit,                 EditControl,    dlg, :value=> "Tweeted with PhotoMechanic of @CameraBits", :multiline=>true, :persist=> true, :align => 'right')
+    create_control(:tweet_length_static,        Static,         dlg, :label=> "140", :align => 'right')
+
+    create_control(:transmit_group_box,        GroupBox,    dlg, :label=>"Transmit:")
+    create_control(:send_original_radio,       RadioButton, dlg, :label=>"Original Photos")
+    create_control(:send_jpeg_radio,           RadioButton, dlg, :label=>"Saved as JPEG", :checked=>true)
     RadioButton.set_exclusion_group(@send_original_radio, @send_jpeg_radio)
     create_control(:send_desc_edit,             EditControl,    dlg, :value=>"Note: Twitter's supported image formats are PNG, JPG and GIF. Twitter removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media.", :multiline=>true, :readonly=>true, :persist=>false)
     create_jpeg_controls(dlg)
     create_image_processing_controls(dlg)
+    #create_operations_controls(dlg)
   end
 
-  STATIC_TEXT_HEIGHT = 20
-  EDIT_FIELD_HEIGHT = 24
-  COLOR_BUTTON_HEIGHT = 24
-  RIGHT_PAD = 5
-
   def layout_controls(container)
-    sh = STATIC_TEXT_HEIGHT
-    eh = EDIT_FIELD_HEIGHT
-    ch = COLOR_BUTTON_HEIGHT
-    rp = RIGHT_PAD
-    w1 = 400
+    sh, eh = 20, 24
 
-    container.inset(15, 5, -15, -5)
+    container.inset(15, 5, -5, -5)
 
     container.layout_with_contents(@dest_account_group_box, 0, 0, -1, -1) do |c|
-      c.set_prev_right_pad(rp).inset(10,25,-10,-5).mark_base
+      c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
 
-      c << @dest_account_static.layout(0, c.base+3, 100, sh)
-      c << @dest_account_combo.layout(c.prev_right, c.base, 130, eh)
-      # c << @authorize_button.layout(c.prev_right+5, c.base, 120, eh)
-
-      c.pad_down(0).mark_base
-
-      c << @tweet_static.layout(0, c.base + 8, 100, sh)
-      c << @tweet_edit.layout(c.prev_right, c.base + 8, w1, eh*2)
-      c << @tweet_length_static.layout(c.prev_right + 3, c.base + eh*2 -sh/2, 70, sh)
+      c << @dest_account_static.layout(0, c.base+3, 80, sh)
+      c << @dest_account_combo.layout(c.prev_right, c.base, 200, eh)
 
       c.pad_down(5).mark_base
       c.mark_base.size_to_base
     end
-
 
     container.pad_down(5).mark_base
 
-    container.layout_with_contents(@transmit_group_box, 0, container.base, "100%-3", -1) do |xmit_container|
-      c = xmit_container
-      c.set_prev_right_pad(rp).inset(10,25,-10,-5).mark_base
-
-      c << @send_original_radio.layout(0, c.base, 120, eh)
-      save_right, save_base = c.prev_right, c.base
-      c.pad_down(5).mark_base
-      c << @send_jpeg_radio.layout(0, c.base, 120, eh)
-        c << @send_desc_edit.layout(save_right+5, save_base, -1, 76)
-      c.pad_down(5).mark_base
-
-      layout_jpeg_controls(c, eh, sh)
-
-      c.layout_with_contents(@imgproc_group_box, 0, c.base, -1, -1) do |c|
-        c.set_prev_right_pad(rp).inset(10,25,-10,-5).mark_base
-
-        w1, w2 = 70, 182
-        w1w = (w2 - w1)
-        layout_image_processing_controls(c, eh, sh, w1, w2, w1w)
-      end
-      c = xmit_container
+    container.layout_with_contents(@tweet_group_box, 0, container.base, -1, -1) do |c|
+      c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
+      # c << @tweet_static.layout(0, c.base + 8, 100, sh)
+      c << @tweet_edit.layout(0, c.base, "100%", eh*2)
+      c.pad_down(2).mark_base
+      c << @tweet_length_static.layout(-80, c.base, 80, sh)
 
       c.pad_down(5).mark_base
       c.mark_base.size_to_base
     end
 
-    container.pad_down(20).mark_base
+    container.pad_down(5).mark_base
+    container.mark_base.size_to_base
+
+    container.layout_with_contents(@transmit_group_box, 0, container.base, "100%", -1) do |c|
+      c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
+
+      c << @send_original_radio.layout(0, c.base, 120, eh)
+      c << @send_jpeg_radio.layout(0, c.base+eh+5, 120, eh)
+      c << @send_desc_edit.layout(c.prev_right+5, c.base, -1, 2*eh)
+      c.pad_down(5).mark_base
+
+      layout_jpeg_controls(c, eh, sh)
+      c.pad_down(5).mark_base
+
+      c.layout_with_contents(@imgproc_group_box, 0, c.base, -1, -1) do |cc|
+        cc.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
+
+        layout_image_processing_controls(cc, eh, sh, 80, 200, 120)
+
+        cc.pad_down(5).mark_base
+        cc.mark_base.size_to_base
+      end
+
+      c.pad_down(5).mark_base
+      c.mark_base.size_to_base
+    end
+
+    container.pad_down(5).mark_base
+    container.mark_base.size_to_base
   end
 
   def have_source_raw_jpeg_controls?
@@ -468,44 +366,21 @@ class TwitterBackgroundDataFetchWorker
     @client = TwitterClient.new(@bridge)
   end
 
-  def account
-    @dlg.account
-  end
-
-  def configuration
-  end
-
   def do_task
-    validate_number_of_images
-
     return unless @dlg.account_parameters_dirty
 
-    @dlg.reset_active_account
-    check_status if @dlg.account_valid?
-    @dlg.adjust_tweet_length_indicator
-    @dlg.account_parameters_dirty = false
-
-  rescue => e
-    @dlg.set_status_text "Error communicating with twitter: #{e}"
-  end
-
-  def validate_number_of_images
-    if @dlg.num_files > 1
-      @dlg.set_status_text("More than one photo selected!")
-      @dlg.disable_ui
-    end
-  end
-
-  def check_status
-    @dlg.set_status_text("Checking connection status...")
-    status = @client.get_configuration
-
-    if status.class === Hash && status['errors']
-      @dlg.set_status_text(status['errors'].first['message'])
+    acct = @dlg.current_account_settings
+    if acct.nil?
+      @dlg.set_status_text("Please select an account, or create one with the Connections button.")
+    elsif ! acct.appears_valid?
+      @dlg.set_status_text("Some account settings appear invalid or missing. Please click the Connections button.")
+    elsif @dlg.num_files == 0
+        @dlg.set_status_text("No images selected!")
     else
-      # @dlg.disable_authorize_button
-      @dlg.set_status_text("You are logged in and ready to tweet.")
+      @dlg.set_status_text("You are logged in and ready to upload your " + (@dlg.num_files > 1 ? "#{@dlg.num_files} images." : "image."))
     end
+    @dlg.account_parameters_dirty = false
+    @dlg.adjust_tweet_length_indicator
   end
 end
 
@@ -520,7 +395,7 @@ class TwitterFileUploader
   include PreflightWaitAccountParametersLogic
 
   attr_accessor :account_parameters_dirty, :authenticated_protocol
-  attr_reader :num_files, :ui
+  attr_reader :num_files, :ui, :max_tweet_length
 
   DLG_SETTINGS_KEY = :upload_dialog
 
@@ -529,7 +404,7 @@ class TwitterFileUploader
   end
 
   def self.template_description
-    "Upload an image to Twitter"
+    "Tweet an image"
   end
 
   def self.conn_settings_class
@@ -544,6 +419,9 @@ class TwitterFileUploader
     @last_status_txt = nil
     @account_parameters_dirty = false
     @data_fetch_worker = nil
+    # Twitter doesn't like it when you request the config too often so we hard code this
+    # max len = 140 - short url length (we take the https version just to be sure)
+    @max_tweet_length = 140-23
   end
 
   def upload_files(global_spec, progress_dialog)
@@ -551,6 +429,10 @@ class TwitterFileUploader
     acct = current_account_settings
     raise "Failed to load settings for current account. Please click the Connections button." unless acct
     spec = build_upload_spec(acct, @ui)
+
+    # Expand any variables in the tweet text, per image
+    build_tweet_spec(spec, ui)
+
     @bridge.kickoff_template_upload(spec, TwitterUploadProtocol)
   end
 
@@ -571,61 +453,44 @@ class TwitterFileUploader
     @ui = TwitterFileUploaderUI.new(@bridge)
     @ui.create_controls(parent_dlg)
 
-    # @ui.authorize_button.on_click { handle_authorize_button }
     @ui.send_original_radio.on_click { adjust_controls }
     @ui.send_jpeg_radio.on_click { adjust_controls }
 
-    @ui.dest_account_combo.on_sel_change {account_parameters_changed}
+    @ui.dest_account_combo.on_sel_change { account_parameters_changed }
+    # FIXME!!! This doesn't seem to work!
     @ui.tweet_edit.on_edit_change { adjust_tweet_length_indicator }
 
     add_jpeg_controls_event_hooks
     add_image_processing_controls_event_hooks
-    set_seqn_static_to_current_seqn
-    add_default_tweet_content
+    #add_operations_controls_event_hooks
+    #set_seqn_static_to_current_seqn
 
     @last_status_txt = nil
 
     create_data_fetch_worker
   end
 
+  def get_tweet_bodies
+    # Expand variables in tweets for each image
+    tweet_bodies = {}
+    @num_files.times do |i|
+      unique_id = @bridge.get_item_unique_id(i+1)
+      dbgprint "Tweet Body #{i}(#{unique_id})"
+      tweet_bodies[unique_id] = @bridge.expand_vars(tweet_body, i+1)
+      dbgprint "Tweet Body #{i}(#{unique_id}) = #{tweet_bodies[unique_id]}"
+    end
+    tweet_bodies
+  end
+
   def adjust_tweet_length_indicator
-    @ui.tweet_edit.enable(false)
-
-    text = @ui.tweet_edit.get_text
-    length = text.length
-    link_char_count = (config && !config.is_a?(Hash)) ? config.link_char_count || 0 : 0
-    tweet_length = 140
-    remaining = tweet_length - (length + link_char_count)
-
-    @ui.tweet_edit.set_text(text[0..remaining]) if remaining < 0
-
-    text = tweet_body
-    length = text.length
-    tweet_length = 140
-    remaining = tweet_length - (length + link_char_count)
-
+    dbgprint "Adjust tweet_length indicator"
+    tweet_bodies = get_tweet_bodies
+    remaining = @max_tweet_length - (tweet_bodies.map { |i, t| t.length }).max
     @ui.tweet_length_static.set_text(remaining.to_s)
-    @ui.tweet_edit.enable(true)
   end
 
   def tweet_body
     @ui.tweet_edit.get_text
-  end
-
-  def add_default_tweet_content
-    @ui.tweet_edit.set_text("")
-  end
-
-  # def handle_authorize_button
-  #   authenticated_protocol.launch_pincode_authorization
-  # end
-
-  def enable_authorize_button
-    # @ui.authorize_button.enable(true)
-  end
-
-  def disable_authorize_button
-    # @ui.authorize_button.enable(false)
   end
 
   def layout_controls(container)
@@ -639,10 +504,6 @@ class TwitterFileUploader
 
   def reset_active_account
     account_parameters_changed
-  end
-
-  def selected_account
-    @ui.dest_account_combo.get_selected_item_text
   end
 
   def save_state(serializer)
@@ -674,7 +535,6 @@ class TwitterFileUploader
     end
   end
 
-
   def periodic_timer_callback
     return unless @ui
     @data_fetch_worker.exec_messages
@@ -699,8 +559,8 @@ class TwitterFileUploader
       @ui.dest_account_combo.set_selected_item( selected_settings_name )
     end
 
-    # if selection didn't take, and we have items in the list, just pick the 1st one
-    if @ui.dest_account_combo.get_selected_item.empty?  &&  @ui.dest_account_combo.num_items > 0
+    # If selection didn't take, and we have items in the list, just pick the 1st one
+    if @ui.dest_account_combo.get_selected_item.empty? &&  @ui.dest_account_combo.num_items > 0
       @ui.dest_account_combo.set_selected_item( @ui.dest_account_combo.get_item_at(0) )
     end
   end
@@ -720,14 +580,14 @@ class TwitterFileUploader
       begin
 
         prot = TwitterUploadProtocol.new(@bridge, {
-          :connection_settings_serializer => @conn_settings_ser,
-          :dialog => self
-        })
+                                           :connection_settings_serializer => @conn_settings_ser,
+                                           :dialog => self
+                                         })
 
         prot.authenticate_from_settings({
-          :token => account.auth_token,
-          :token_secret => account.auth_token_secret
-        }) if tokens_present?
+                                          :token => account.auth_token,
+                                          :token_secret => account.auth_token_secret
+                                        }) if tokens_present?
 
       rescue Exception => ex
         display_message_box "Unable to login to Twitter server. Please click the Connections button.\nError: #{ex.message}"
@@ -739,31 +599,16 @@ class TwitterFileUploader
     @authenticated_protocol ||= prot
   end
 
-  def config
-    authenticated_protocol.config
-  end
-
-  # account from settings data
   def account
     @account = current_account_settings
   end
 
   def account_valid?
-    (account_empty? || account_invalid?) ? false : true
-  end
-
-  def toggle_authorize_button
-    # enable  = if (account_empty? || account_valid?)
-    #   false
-    # else
-    #   true
-    # end
-    # @ui.authorize_button.enable(enable)
+    ! (account_empty? || account_invalid?)
   end
 
   def disable_ui
-    @ui.tweet_edit.enable(false)
-    # @ui.send_button.enable(false)
+    @ui.send_button.enable(false)
   end
 
   def imglink_button_spec
@@ -794,22 +639,21 @@ class TwitterFileUploader
 
   def adjust_controls
     adjust_image_processing_controls
-    toggle_authorize_button
   end
 
   def build_upload_spec(acct, ui)
     spec = AutoStruct.new
 
-    # string displayed in upload progress dialog title bar:
-    spec.upload_display_name  = "twitter.com:#{acct.user_name}"
-    # string used in logfile name, should have NO spaces or funky characters:
+    # String displayed in upload progress dialog title bar:
+    spec.upload_display_name  = "twitter.com:#{ui.dest_account_combo.get_selected_item}"
+    # String used in logfile name, should have NO spaces or funky characters:
     spec.log_upload_type      = TEMPLATE_DISPLAY_NAME.tr('^A-Za-z0-9_-','')
-    # account string displayed in upload log entries:
+    # Account string displayed in upload log entries:
     spec.log_upload_acct      = spec.upload_display_name
 
-    spec.token = authenticated_protocol.access_token
-    spec.token_secret = authenticated_protocol.access_token_secret
-    spec.tweet_body = tweet_body
+    # Token and secret
+    spec.token = account.auth_token
+    spec.token_secret = account.auth_token_secret
 
     # FIXME: we're limiting concurrent uploads to 1 because
     #        end of queue notification happens per uploader thread
@@ -825,10 +669,6 @@ class TwitterFileUploader
     #       Rule of thumb: If file A requires a different
     #       login than file B, they should have different
     #       queue keys.
-    #       IMPORTANT: Since Twitter end-of-queue upload job
-    #       applies to a given galery, we require that uploads to
-    #       differing galleries be separated into their own queues.
-    #       Thus, we make gallery part of the queue key.
     spec.upload_queue_key = [
       "Twitter"
     ].join("\t")
@@ -847,6 +687,11 @@ class TwitterFileUploader
     build_image_processing_spec(spec, ui)
 
     spec
+  end
+
+  def build_tweet_spec(spec, ui)
+    spec.tweet_bodies = get_tweet_bodies
+    spec.max_tweet_length = @max_tweet_length
   end
 
   def fetch_conn_settings_data
@@ -895,18 +740,18 @@ class TwitterFileUploader
   end
 end
 
-class TwitterPincodeVerifierDialog < Dlg::DynModalChildDialog
+class TwitterCodeVerifierDialog < Dlg::DynModalChildDialog
 
   include PM::Dlg
   include CreateControlHelper
 
-  attr_accessor :access_token, :access_token_secret, :user_name
+  attr_accessor :access_token, :access_token_secret, :name
 
   def initialize(api_bridge, client, dialog_end_callback)
     @bridge = api_bridge
     @access_token = nil
     @access_token_secret = nil
-    @user_name = nil
+    @name = "Unknown"
     @client = client
     @dialog_end_callback = dialog_end_callback
     super()
@@ -914,18 +759,15 @@ class TwitterPincodeVerifierDialog < Dlg::DynModalChildDialog
 
   def init_dialog
     dlg = self
-    dlg.set_window_position_key("TwitterPincodeVerifierDialogT")
+    dlg.set_window_position_key("TwitterCodeVerifierDialogT")
     dlg.set_window_position(50, 200, 300, 160)
-    title = "Verify Pincode"
+    title = "Verification code"
     dlg.set_window_title(title)
 
-    parent_dlg = dlg
-    create_control(:pincode_static,       Static,         parent_dlg, :label=>"Enter the pincode:", :align=>"left")
-    create_control(:pincode_edit,         EditControl,    parent_dlg, :value=>"", :persist=>false)
-
-    create_control(:submit_button,            Button,         parent_dlg, :label=>"Submit")
-    create_control(:cancel_button,            Button,         parent_dlg, :label=>"Cancel")
-
+    create_control(:code_static,   Static,      dlg, :label=>"Enter the verification code:")
+    create_control(:code_edit,     EditControl, dlg, :value=>"", :persist=>false)
+    create_control(:submit_button, Button,      dlg, :label=>"Submit", :does=>"ok")
+    create_control(:cancel_button, Button,      dlg, :label=>"Cancel", :does=>"cancel")
 
     @submit_button.on_click { get_access_token }
     @cancel_button.on_click { closebox_clicked }
@@ -936,49 +778,47 @@ class TwitterPincodeVerifierDialog < Dlg::DynModalChildDialog
   end
 
   def destroy_dialog!
-    @dialog_end_callback.call(@access_token, @access_token_secret, @user_name) if @dialog_end_callback
+    @dialog_end_callback.call(@access_token, @access_token_secret, @name) if @dialog_end_callback
     super
   end
 
   def layout_controls
-    sh = 20
-    eh = 24
-    bh = 28
+    sh, eh = 20, 24
+
     dlg = self
     client_width, client_height = dlg.get_clientrect_size
     c = LayoutContainer.new(0, 0, client_width, client_height)
-    c.inset(16, 10, -16, -10)
+    c.inset(10, 20, -10, -5)
 
-    w1 = 250
-    c << @pincode_static.layout(0, c.base, w1, sh)
+    c << @code_static.layout(0, c.base, -1, sh)
     c.pad_down(0).mark_base
-    c << @pincode_edit.layout(0, c.base, w1, eh)
+    c << @code_edit.layout(0, c.base, -1, eh)
     c.pad_down(5).mark_base
 
     bw = 80
-    c << @submit_button.layout(-(bw*2+10), -bh, bw, bh)
-    c << @cancel_button.layout(-bw, -bh, bw, bh)
+    c << @submit_button.layout(-(2*bw+3), -eh, bw, eh)
+    c << @cancel_button.layout(-bw, -eh, bw, eh)
   end
 
   protected
 
-  def pincode_value
-    @pincode_edit.get_text.strip
+  def code_value
+    @code_edit.get_text.strip
   end
 
-  def pincode_value_empty?
-    pincode_value.empty?
+  def code_value_empty?
+    code_value.empty?
   end
 
-  def notify_pincode_value_blank
-    Dlg::MessageBox.ok("Please enter a non-blank pincode.", Dlg::MessageBox::MB_ICONEXCLAMATION)
+  def notify_code_value_blank
+    Dlg::MessageBox.ok("Please enter a non-blank code.", Dlg::MessageBox::MB_ICONEXCLAMATION)
   end
 
   def get_access_token
-    notify_pincode_value_blank and return if pincode_value_empty?
+    notify_code_value_blank and return if code_value_empty?
 
     begin
-      oauth_verifier = pincode_value
+      oauth_verifier = code_value
       result = @client.get_access_token(oauth_verifier)
       store_access_settings(result)
     rescue StandardError => ex
@@ -989,9 +829,7 @@ class TwitterPincodeVerifierDialog < Dlg::DynModalChildDialog
   end
 
   def store_access_settings(result)
-    @access_token = result[:access_token]
-    @access_token_secret = result [:access_token_secret]
-    @user_name = result[:user_name]
+    @access_token, @access_token_secret, @name = result
   end
 end
 
@@ -1000,58 +838,47 @@ class TwitterClient
   API_KEY = 'n4ymCL7XJjI6d3FnfvRNwUv1X'
   API_SECRET = '9lEB25A6LZGBKK5MY7ZW494jOC0bW0cpxmOjxW4ZTlutLY5YTg'
 
-  attr_accessor :access_token, :access_token_secret, :user_name
-  attr_accessor :config
+  attr_accessor :access_token, :access_token_secret, :name
 
   def initialize(bridge, options = {})
     @bridge = bridge
-    @authenticated = false
   end
 
   def reset!
     @access_token = nil
     @access_token_secret = nil
-    @user_name = nil
+    @name = nil
   end
 
-  def to_h
-    {
-        :access_token => @access_token,
-        :access_token_secret => @access_token_secret,
-        :user_name => @user_name
-    }
-  end
-
-  def launch_pincode_authorization(callback)
+  def get_application_authorization(callback)
     reset!
     fetch_request_token
-    launch_pincode_authorization_in_browser
-    open_pincode_entry_dialog(callback)
+    launch_application_authorization_in_browser
+    open_code_entry_dialog(callback)
   end
 
   def fetch_request_token
     response = post('oauth/request_token')
 
     result = CGI::parse(response.body)
-
-    @access_token = result['oauth_token']
-    @access_token_secret = result['oauth_token_secret']
+    @access_token = result['oauth_token'].to_s
+    @access_token_secret = result['oauth_token_secret'].to_s
     @access_token
   end
 
-  def launch_pincode_authorization_in_browser
+  def launch_application_authorization_in_browser
     fetch_request_token unless @access_token
-    pincode_url = "https://api.twitter.com/oauth/authorize?oauth_token=#{@access_token}"
-    @bridge.launch_url(pincode_url)
+    authorization_url = "https://api.twitter.com/oauth/authorize?oauth_token=#{@access_token}"
+    @bridge.launch_url(authorization_url)
   end
 
-  def open_pincode_entry_dialog(callback)
-    callback_a = lambda do |token, token_secret, user_name|
-      store_settings_data(token, token_secret, user_name)
+  def open_code_entry_dialog(callback)
+    callback_a = lambda do |token, token_secret, name|
+      store_settings_data(token, token_secret, name)
       callback.call(self)
       # update_ui
     end
-    cdlg = TwitterPincodeVerifierDialog.new(@bridge, self, callback_a)
+    cdlg = TwitterCodeVerifierDialog.new(@bridge, self, callback_a)
     cdlg.instantiate!
     cdlg.request_deferred_modal
   end
@@ -1060,17 +887,20 @@ class TwitterClient
     @verifier = verifier
     response = post('oauth/access_token')
     result = CGI::parse(response.body)
+    @access_token = result['oauth_token'].to_s
+    @access_token_secret = result['oauth_token_secret'].to_s
 
-    @access_token = result['oauth_token']
-    @access_token_secret = result['oauth_token_secret']
-    @user_name = result['screen_name']
+    raise "Unable to verify code" unless authenticated?
 
-    to_h
+    @name = result['screen_name'].to_s
+
+    [ @access_token, @access_token_secret, @name ]
   end
 
   def authenticate_from_settings(settings = {})
     @access_token = settings[:token]
     @access_token_secret = settings[:token_secret]
+    @name = settings[:name]
   end
 
   def update_ui
@@ -1078,39 +908,13 @@ class TwitterClient
   end
 
   def authenticated?
-    @authenticated
+    !(@access_token.nil? || @access_token.empty? || @access_token_secret.nil? || @access_token_secret.empty?)
   end
 
-  def store_settings_data(token, token_secret, user_name)
+  def store_settings_data(token, token_secret, name)
     @access_token = token
     @access_token_secret = token_secret
-    @user_name = user_name
-    @authenticated = true
-  end
-
-  def get_rate_status
-    response = get('1.1/application/rate_limit_status.json')
-    response_body = JSON.parse(response.body)
-  end
-
-  def get_configuration
-    unless @config
-      response = get('1.1/help/configuration.json')
-      response_body = JSON.parse(response.body)
-      config = TwitterConfiguration.from_response(response_body)
-
-
-      @config ||= config
-    end
-  end
-
-  def verify_credentials
-    response = get('1.1/account/verify_credentials.json')
-    JSON.parse(response.body)
-  end
-
-  def post_tweet(data, headers)
-    response = post('1.1/statuses/update_with_media.json', data, headers)
+    @name = name
   end
 
   protected
@@ -1130,12 +934,12 @@ class TwitterClient
 
   def credentials
     {
-        :consumer_key    => API_KEY,
-        :consumer_secret => API_SECRET,
-        :token           => @access_token,
-        :token_secret    => @access_token_secret,
-        :verifier => @verifier,
-        :callback => 'oob'
+      :consumer_key    => API_KEY,
+      :consumer_secret => API_SECRET,
+      :token           => @access_token,
+      :token_secret    => @access_token_secret,
+      :verifier        => @verifier,
+      :callback        => 'oob'
     }
   end
 
@@ -1186,13 +990,11 @@ class TwitterClient
 end
 
 class TwitterUploadProtocol
-
   BASE_URL = "https://api.twitter.com/"
   API_KEY = 'n4ymCL7XJjI6d3FnfvRNwUv1X'
   API_SECRET = '9lEB25A6LZGBKK5MY7ZW494jOC0bW0cpxmOjxW4ZTlutLY5YTg'
 
-  attr_reader :access_token, :access_token_secret, :user_name
-  attr_accessor :config
+  attr_reader :access_token, :access_token_secret
 
   def initialize(pm_api_bridge, options = {:connection_settings_serializer => nil, :dialog => nil})
     @bridge = pm_api_bridge
@@ -1202,7 +1004,6 @@ class TwitterUploadProtocol
     @access_token_secret = nil
     @dialog = options[:dialog]
     @connection_settings_serializer = options[:connection_settings_serializer]
-    @config = nil
     mute_transfer_status
     close
   end
@@ -1228,9 +1029,8 @@ class TwitterUploadProtocol
 
     @access_token = spec.token
     @access_token_secret = spec.token_secret
-    tweet_body = spec.tweet_body
 
-    upload(local_filepath, remote_filename, tweet_body)
+    upload(local_filepath, remote_filename, spec)
 
     @shared.mutex.synchronize {
       dat = (@shared[spec.upload_queue_key] ||= {})
@@ -1242,19 +1042,13 @@ class TwitterUploadProtocol
   end
 
   def transfer_queue_empty(spec)
-    job_url = nil
     @shared.mutex.synchronize {
       dat = (@shared[spec.upload_queue_key] ||= {})
 
       if dat[:pending_uploadjob].to_i > 0
-        job_url = dat[:uploadjob_url]
         dat[:pending_uploadjob] = 0
       end
     }
-
-    if job_url
-      uploadjob(job_url)
-    end
   end
 
   def reset_transfer_status
@@ -1274,9 +1068,12 @@ class TwitterUploadProtocol
     (h = @http) and h.abort_transfer
   end
 
-  def upload(fname, remote_filename, tweet_body)
+  def upload(fname, remote_filename, spec)
     fcontents = @bridge.read_file_for_upload(fname)
 
+    tweet_body = spec.tweet_bodies[spec.unique_id]
+    dbgprint "MAX=#{spec.max_tweet_length} LEN=#{tweet_body.length}"
+    tweet_body = tweet_body[0..spec.max_tweet_length] if tweet_body.length > spec.max_tweet_length
     mime = MimeMultipart.new
     mime.add_field("status", tweet_body)
     mime.add_field("source", '<a href="http://store.camerabits.com">Photo Mechanic 5</a>')
@@ -1287,26 +1084,11 @@ class TwitterUploadProtocol
 
     begin
       @mute_transfer_status = false
-      verify_credentials
-      resp = post_tweet(data, headers)
+      resp = post('1.1/statuses/update_with_media.json', data, headers)
       require_server_success_response(resp)
     ensure
       @mute_transfer_status = true
     end
-  end
-
-  def generate_photo_id(filename)
-    Digest::SHA1.hexdigest "#{Time.now.to_s}-#{filename}"
-  end
-
-  def uploadjob(order)
-    xmlquery = "<uploadjob>\n"
-    xmlquery += "<order uri=\"#{order}\"\/>\n"
-    xmlquery += "<settings />\n"
-    xmlquery += "</uploadjob>\n"
-    headers = { 'Content-Type' => 'application/xml', 'Cookie' => @api_key}
-    resp = post("uploadjobs", xmlquery, headers)
-    sleep 5.0  # FIXME: KLUDGE: grr... we wouldn't want to return and find a new file added to the queue and immediately upload it while the job is still processing... not sure how to wait the correct length of time
   end
 
   def authenticate_from_settings(settings = {})
@@ -1314,19 +1096,10 @@ class TwitterUploadProtocol
     @access_token_secret = settings[:token_secret]
   end
 
-  def verify_credentials
-    response = get('1.1/account/verify_credentials.json')
-    JSON.parse(response.body)
-  end
-  #
-  def post_tweet(data, headers)
-    response = post('1.1/statuses/update_with_media.json', data, headers)
-  end
-
   protected
 
   def request_headers(method, url, params = {}, signature_params = params)
-   {'Authorization' => auth_header(method, url, params, signature_params)}
+    {'Authorization' => auth_header(method, url, params, signature_params)}
   end
 
   def auth_header(method, url, params = {}, signature_params = params)
@@ -1344,8 +1117,8 @@ class TwitterUploadProtocol
       :consumer_secret => API_SECRET,
       :token           => @access_token,
       :token_secret    => @access_token_secret,
-      :verifier => @verifier,
-      :callback => 'oob'
+      :verifier        => @verifier,
+      :callback        => 'oob'
     }
   end
 
@@ -1392,31 +1165,5 @@ class TwitterUploadProtocol
 
   def require_server_success_response(resp)
     raise(RuntimeError, resp.inspect) unless resp.code == "200"
-  end
-end
-
-class TwitterConfiguration
-  attr_accessor :image_size_limit, :link_char_count, :max_images
-
-  def self.from_response(response_body)
-    if response_body['errors']
-      response_body
-    else
-      image_size_limit = response_body['photo_size_limit']
-      link_char_count = response_body['short_url_length_https']
-      max_images = response_body['max_media_per_upload']
-
-      new({
-        :image_size_limit => image_size_limit,
-        :link_char_count => link_char_count,
-        :max_images => max_images
-      })
-    end
-  end
-
-  def initialize(args = {})
-    @image_size_limit ||= args[:image_size_limit]
-    @link_char_count ||= args[:link_char_count]
-    @max_images ||= args[:max_images]
   end
 end
