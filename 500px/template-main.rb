@@ -1008,8 +1008,8 @@ end
 
 class U500pxClient
   BASE_URL = "https://api.500px.com/v1/"
-  API_KEY = 'Vai22qxgGIIsdONIVkICLHsFAlGaP52GAYF0beK6'
-  API_SECRET = '8ks0AuHKQUO2WEIxrAeBsFOMBgOHc13KdwCKRX4w'
+  API_KEY = 'w7c3g81Jm0Adz8xKaQKYmptq6TQgpMCB8RRcBb8H'
+  API_SECRET = 'FOt5VAtOD1DZ3rzZa25lU8V1pAufkzXg9scjk65z'
 
   attr_accessor :access_token, :access_token_secret, :name
 
@@ -1118,7 +1118,7 @@ class U500pxClient
       :token           => @access_token,
       :token_secret    => @access_token_secret,
       :verifier        => @verifier,
-      :callback        => 'http://www.hayobaan.nl/codeverifier.php'
+      :callback        => 'https://auth.camerabits.com/oauth/verifier/500px'
     }
   end
 
@@ -1170,8 +1170,8 @@ end
 
 class U500pxUploadProtocol
   BASE_URL = "https://api.500px.com/v1/"
-  API_KEY = 'Vai22qxgGIIsdONIVkICLHsFAlGaP52GAYF0beK6'
-  API_SECRET = '8ks0AuHKQUO2WEIxrAeBsFOMBgOHc13KdwCKRX4w'
+  API_KEY = 'w7c3g81Jm0Adz8xKaQKYmptq6TQgpMCB8RRcBb8H'
+  API_SECRET = 'FOt5VAtOD1DZ3rzZa25lU8V1pAufkzXg9scjk65z'
 
   attr_reader :access_token, :access_token_secret
 
@@ -1315,7 +1315,7 @@ class U500pxUploadProtocol
       :token           => @access_token,
       :token_secret    => @access_token_secret,
       :verifier        => @verifier,
-      :callback        => 'http://www.hayobaan.nl/codeverifier.php'
+      :callback        => 'https://auth.camerabits.com/oauth/verifier/500px'
     }
   end
 
