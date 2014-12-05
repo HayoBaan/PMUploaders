@@ -74,14 +74,14 @@ class U500pxConnectionSettings
 
   class SettingsData
     attr_accessor :auth_token, :auth_token_secret
-    
+
     def initialize(name, token, token_secret)
       @account_name = name
       @auth_token = token
       @auth_token_secret = token_secret
       self
     end
-    
+
     def appears_valid?
       return ! (@account_name.nil? || @account_name.empty? || @auth_token.nil? || @auth_token.empty? || @auth_token_secret.nil? || @auth_token_secret.empty?)
     rescue
@@ -357,7 +357,7 @@ class U500pxFileUploaderUI
     create_control(:meta_latitude_edit,        EditControl, dlg, :value=>"{latitude}", :multiline=>false)
     create_control(:meta_longitude_static,     Static,      dlg, :label=>"Longitude")
     create_control(:meta_longitude_edit,       EditControl, dlg, :value=>"{longitude}", :multiline=>false)
-  
+
     create_control(:transmit_group_box,        GroupBox,    dlg, :label=>"Transmit:")
     create_control(:send_original_radio,       RadioButton, dlg, :label=>"Original Photos")
     create_control(:send_jpeg_radio,           RadioButton, dlg, :label=>"Saved as JPEG", :checked=>true)
@@ -387,12 +387,12 @@ class U500pxFileUploaderUI
 
     container.layout_with_contents(@meta_left_group_box, 0, container.base, "50%-5", -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
-      
+
       c << @meta_category_static.layout(0, c.base+3, 80, sh)
       c << @meta_category_combo.layout(c.prev_right, c.base, 185, eh)
       c << @meta_nsfw_check.layout(c.prev_right+10, c.base, -1, sh)
       c.pad_down(5).mark_base
-     
+
       c << @meta_license_type_static.layout(0, c.base+3, 80, sh)
       c << @meta_license_type_combo.layout(c.prev_right, c.base, 185, eh)
       c << @meta_privacy_check.layout(c.prev_right+10, c.base, -1, sh)
@@ -404,18 +404,18 @@ class U500pxFileUploaderUI
       c << @meta_name_static.layout(0, c.base, 80, sh)
       c << @meta_name_edit.layout(c.prev_right, c.base, -1, eh*2)
       c.pad_down(9).mark_base
-      
+
       c << @meta_description_static.layout(0, c.base, 80, sh)
       c << @meta_description_edit.layout(c.prev_right, c.base, -1, eh*2)
       c.pad_down(9).mark_base
-      
+
       c << @meta_tags_static.layout(0, c.base, 80, sh)
       c << @meta_tags_edit.layout(c.prev_right, c.base, -1, eh*2)
       c.pad_down(9).mark_base
 
       c.mark_base.size_to_base
     end
-    
+
     container.layout_with_contents(@meta_right_group_box, "-50%+5", container.base, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
 
@@ -449,14 +449,11 @@ class U500pxFileUploaderUI
       c << @meta_longitude_static.layout(0, c.base, 80, sh)
       c << @meta_longitude_edit.layout(c.prev_right, c.base, -1, eh)
       c.pad_down(5).mark_base
-
       c.mark_base.size_to_base
     end
 
     container.pad_down(5).mark_base
     container.mark_base.size_to_base
-
-    container.pad_down(5).mark_base
 
     container.layout_with_contents(@operations_group_box, "50%+5", container.base, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
@@ -493,7 +490,7 @@ class U500pxFileUploaderUI
 
       c.layout_with_contents(@imgproc_group_box, 0, c.base, -1, -1) do |cc|
         cc.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
-        
+
         layout_image_processing_controls(cc, eh, sh, 80, 200, 120)
 
         cc.pad_down(5).mark_base
@@ -530,7 +527,7 @@ class U500pxBackgroundDataFetchWorker
 
   def do_task
     return unless @dlg.account_parameters_dirty
-    success = false
+
     acct = @dlg.current_account_settings
     if acct.nil?
       @dlg.set_status_text("Please select an account, or create one with the Connections button.")
@@ -541,8 +538,6 @@ class U500pxBackgroundDataFetchWorker
     end
     @dlg.account_parameters_dirty = false
   end
-
-
 end
 
 class U500pxFileUploader
@@ -836,7 +831,7 @@ class U500pxFileUploader
       if !(gpscoordinate =~ /^[\d.+-]+$/).nil?
         gpscoordinate = gpscoordinate.to_f
       elsif !(gpscoordinate =~ /^[NESW]?\s*([\d.+-]+[°'′"″]){1,3}(\s*[NESW])?$/).nil?
-        # Coordinates can be given as 
+        # Coordinates can be given as numeric or as degrees, minutes, seconds
         angle  = 0
         gpscoordinate.scan(/([\d.+-]+)([°'′"″])/) { |n, denominator|
           n = n.to_f
@@ -869,7 +864,7 @@ class U500pxFileUploader
     spec.metadata = {}
     @num_files.times do |i|
       fname = @bridge.expand_vars("{folderpath}{filename}", i+1)
-      unique_id = @bridge.get_item_unique_id(i+1) 
+      unique_id = @bridge.get_item_unique_id(i+1)
       spec.metadata[unique_id] = {}
       metadata.each_pair do |item, value|
         interpreted_value = @bridge.expand_vars(value, i+1)
@@ -878,7 +873,7 @@ class U500pxFileUploader
       end
     end
   end
-  
+
   def fetch_conn_settings_data
     U500pxConnectionSettings.fetch_settings_data(@conn_settings_ser)
   end
@@ -1028,7 +1023,6 @@ class U500pxClient
 
   def initialize(bridge, options = {})
     @bridge = bridge
-    @authenticated = false
   end
 
   def reset!
@@ -1048,9 +1042,8 @@ class U500pxClient
     response = post('oauth/request_token')
 
     result = CGI::parse(response.body)
-    
-    @access_token = result['oauth_token']
-    @access_token_secret = result['oauth_token_secret']
+    @access_token = result['oauth_token'].to_s
+    @access_token_secret = result['oauth_token_secret'].to_s
     @access_token
   end
 
@@ -1074,9 +1067,9 @@ class U500pxClient
   def get_access_token(verifier)
     @verifier = verifier
     response = post('oauth/access_token')
-    result = CGI::parse(response.body)  
-    @access_token = result['oauth_token']
-    @access_token_secret = result['oauth_token_secret']
+    result = CGI::parse(response.body)
+    @access_token = result['oauth_token'].to_s
+    @access_token_secret = result['oauth_token_secret'].to_s
 
     raise "Unable to verify code" unless authenticated?
 
@@ -1087,7 +1080,7 @@ class U500pxClient
     response_body = JSON.parse(response.body)
     @name = "#{response_body['user']['username']} (#{response_body['user']['fullname']})"
     @verifier = verifier
-    
+
     [ @access_token, @access_token_secret, @name ]
   end
 
@@ -1288,7 +1281,7 @@ class U500pxUploadProtocol
           "consumer_key" => API_KEY,
           "access_key" => spec.token
         })
-      
+
       # Upload image to 500px
       fcontents = @bridge.read_file_for_upload(fname)
       mime = MimeMultipart.new
@@ -1300,11 +1293,10 @@ class U500pxUploadProtocol
       ensure_open_http(uri.host, uri.port)
       response = @http.send(:post, uri.request_uri, data, headers)
       require_server_success_response(response)
-      
+
     ensure
       @mute_transfer_status = true
     end
-    return
   end
 
   def authenticate_from_settings(settings = {})
@@ -1333,8 +1325,8 @@ class U500pxUploadProtocol
       :consumer_secret => API_SECRET,
       :token           => @access_token,
       :token_secret    => @access_token_secret,
-      :verifier => @verifier,
-      :callback => 'http://www.hayobaan.nl/codeverifier.php'
+      :verifier        => @verifier,
+      :callback        => 'http://www.hayobaan.nl/codeverifier.php'
     }
   end
 
@@ -1381,31 +1373,5 @@ class U500pxUploadProtocol
 
   def require_server_success_response(resp)
     raise(RuntimeError, resp.inspect) unless resp.code == "200"
-  end
-end
-
-class U500pxConfiguration
-  attr_accessor :image_size_limit, :link_char_count, :max_images
-
-  def self.from_response(response_body)
-    if response_body['errors']
-      response_body
-    else
-      image_size_limit = response_body['photo_size_limit']
-      link_char_count = response_body['short_url_length_https']
-      max_images = response_body['max_media_per_upload']
-
-      new({
-            :image_size_limit => image_size_limit,
-            :link_char_count => link_char_count,
-            :max_images => max_images
-          })
-    end
-  end
-
-  def initialize(args = {})
-    @image_size_limit ||= args[:image_size_limit]
-    @link_char_count ||= args[:link_char_count]
-    @max_images ||= args[:max_images]
   end
 end
