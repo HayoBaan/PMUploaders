@@ -533,8 +533,10 @@ class U500pxBackgroundDataFetchWorker
       @dlg.set_status_text("Please select an account, or create one with the Connections button.")
     elsif ! acct.appears_valid?
       @dlg.set_status_text("Some account settings appear invalid or missing. Please click the Connections button.")
+    elsif @dlg.num_files == 0
+        @dlg.set_status_text("No images selected!")
     else
-      @dlg.set_status_text("You are logged in and ready to upload your images.")
+      @dlg.set_status_text("You are logged in and ready to upload your " + (@dlg.num_files > 1 ? "#{@dlg.num_files} images." : "image."))
     end
     @dlg.account_parameters_dirty = false
   end
