@@ -232,7 +232,7 @@ class U500pxConnectionSettings
         add_account_to_dropdown(client.name)
       end
     end
-    client.get_500px_authorization(save_account_callback)
+    client.get_application_authorization(save_account_callback)
     @prev_selected_settings_name = nil
   end
 
@@ -636,10 +636,6 @@ class U500pxFileUploader
     account_parameters_changed
   end
 
-  def selected_account
-    @ui.dest_account_combo.get_selected_item_text
-  end
-
   def save_state(serializer)
     return unless @ui
     serializer.store(DLG_SETTINGS_KEY, :selected_account, @ui.dest_account_combo.get_selected_item)
@@ -733,11 +729,6 @@ class U500pxFileUploader
     @authenticated_protocol ||= prot
   end
 
-  def config
-    authenticated_protocol.config
-  end
-
-  # account from settings data
   def account
     @account = current_account_settings
   end
@@ -791,8 +782,8 @@ class U500pxFileUploader
     spec.log_upload_acct      = spec.upload_display_name
 
     # Token and secret
-    spec.token = authenticated_protocol.access_token
-    spec.token_secret = authenticated_protocol.access_token_secret
+    spec.token = account.auth_token
+    spec.token_secret = account.auth_token_secret
 
     # FIXME: we're limiting concurrent uploads to 1 because
     #        end of queue notification happens per uploader thread
@@ -1021,7 +1012,6 @@ class U500pxClient
   API_SECRET = '8ks0AuHKQUO2WEIxrAeBsFOMBgOHc13KdwCKRX4w'
 
   attr_accessor :access_token, :access_token_secret, :name
-  attr_accessor :config
 
   def initialize(bridge, options = {})
     @bridge = bridge
@@ -1033,11 +1023,11 @@ class U500pxClient
     @name = nil
   end
 
-  def get_500px_authorization(callback)
+  def get_application_authorization(callback)
     reset!
     fetch_request_token
-    launch_500px_authorization_in_browser
-    open_500px_entry_dialog(callback)
+    launch_application_authorization_in_browser
+    open_code_entry_dialog(callback)
   end
 
   def fetch_request_token
@@ -1049,13 +1039,13 @@ class U500pxClient
     @access_token
   end
 
-  def launch_500px_authorization_in_browser
+  def launch_application_authorization_in_browser
     fetch_request_token unless @access_token
     authorization_url = "https://api.500px.com/v1/oauth/authorize?oauth_token=#{@access_token}"
     @bridge.launch_url(authorization_url)
   end
 
-  def open_500px_entry_dialog(callback)
+  def open_code_entry_dialog(callback)
     callback_a = lambda do |token, token_secret, name|
       store_settings_data(token, token_secret, name)
       callback.call(self)
@@ -1184,7 +1174,6 @@ class U500pxUploadProtocol
   API_SECRET = '8ks0AuHKQUO2WEIxrAeBsFOMBgOHc13KdwCKRX4w'
 
   attr_reader :access_token, :access_token_secret
-  attr_accessor :config
 
   def initialize(pm_api_bridge, options = {:connection_settings_serializer => nil, :dialog => nil})
     @bridge = pm_api_bridge
@@ -1194,7 +1183,6 @@ class U500pxUploadProtocol
     @access_token_secret = nil
     @dialog = options[:dialog]
     @connection_settings_serializer = options[:connection_settings_serializer]
-    @config = nil
     mute_transfer_status
     close
   end
@@ -1295,7 +1283,6 @@ class U500pxUploadProtocol
       ensure_open_http(uri.host, uri.port)
       response = @http.send(:post, uri.request_uri, data, headers)
       require_server_success_response(response)
-
     ensure
       @mute_transfer_status = true
     end
