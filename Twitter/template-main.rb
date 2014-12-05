@@ -436,7 +436,7 @@ class TwitterFileUploader
   include FormatBytesizeLogic
   include PreflightWaitAccountParametersLogic
 
-  attr_accessor :account_parameters_dirty, :authenticated_protocol
+  attr_accessor :account_parameters_dirty
   attr_reader :num_files, :ui, :max_tweet_length
 
   DLG_SETTINGS_KEY = :upload_dialog
@@ -516,15 +516,12 @@ class TwitterFileUploader
     tweet_bodies = {}
     @num_files.times do |i|
       unique_id = @bridge.get_item_unique_id(i+1)
-      dbgprint "Tweet Body #{i}(#{unique_id})"
       tweet_bodies[unique_id] = @bridge.expand_vars(tweet_body, i+1)
-      dbgprint "Tweet Body #{i}(#{unique_id}) = #{tweet_bodies[unique_id]}"
     end
     tweet_bodies
   end
 
   def adjust_tweet_length_indicator
-    dbgprint "Adjust tweet_length indicator"
     tweet_bodies = get_tweet_bodies
     remaining = @max_tweet_length - (tweet_bodies.map { |i, t| t.length }).max
     @ui.tweet_length_static.set_text(remaining.to_s)
@@ -613,31 +610,6 @@ class TwitterFileUploader
     update_account_combo_list
     select_active_account
     account_parameters_changed
-  end
-
-  def authenticated_protocol
-    unless @authenticated_protocol
-      prot = nil
-      begin
-
-        prot = TwitterUploadProtocol.new(@bridge, {
-                                           :connection_settings_serializer => @conn_settings_ser,
-                                           :dialog => self
-                                         })
-
-        prot.authenticate_from_settings({
-                                          :token => account.auth_token,
-                                          :token_secret => account.auth_token_secret
-                                        }) if tokens_present?
-
-      rescue Exception => ex
-        display_message_box "Unable to login to Twitter server. Please click the Connections button.\nError: #{ex.message}"
-        (prot.close if prot) rescue nil
-        raise
-      end
-    end
-
-    @authenticated_protocol ||= prot
   end
 
   def account
@@ -1002,8 +974,7 @@ class TwitterUploadProtocol
     fcontents = @bridge.read_file_for_upload(fname)
 
     tweet_body = spec.tweet_bodies[spec.unique_id]
-    dbgprint "MAX=#{spec.max_tweet_length} LEN=#{tweet_body.length}"
-    tweet_body = tweet_body[0..spec.max_tweet_length] if tweet_body.length > spec.max_tweet_length
+    tweet_body = tweet_body[0..(spec.max_tweet_length-1)] if tweet_body.length > spec.max_tweet_length
     mime = MimeMultipart.new
     mime.add_field("status", tweet_body)
     mime.add_field("source", '<a href="http://store.camerabits.com">Photo Mechanic 5</a>')
