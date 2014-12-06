@@ -185,6 +185,9 @@ class TwitterFileUploader < OAuthFileUploader
     spec.do_rename = false
     spec.save_photos_subdir_type = 'specific'
 
+    # Twitter doesn't allow concurrent uploads
+    spec.max_concurrent_uploads = 1
+
     spec.tweet_bodies = get_tweet_bodies
     spec.max_tweet_length = @max_tweet_length
   end
