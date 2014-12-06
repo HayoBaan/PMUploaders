@@ -118,6 +118,8 @@ class TwitterBackgroundDataFetchWorker < OAuthBackgroundDataFetchWorker
 end
 
 class TwitterFileUploader < OAuthFileUploader
+  include PM::FileUploaderTemplate  # This also registers the class as File Uploader
+
   attr_reader :max_tweet_length
 
   def self.conn_settings_class
