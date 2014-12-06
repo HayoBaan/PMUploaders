@@ -243,6 +243,7 @@ class TwitterConnectionSettings
     @ui.code_verify_button.enable(true)
     @ui.code_edit.enable(true)
     @ui.code_edit.set_text("")
+    @ui.code_edit.set_focus
     @ui.setting_delete_button.enable(false)
     @ui.setting_add_button.enable(false)
     client.reset!
@@ -514,6 +515,7 @@ class TwitterFileUploader
   def get_tweet_bodies
     # Expand variables in tweets for each image
     tweet_bodies = {}
+    tweet_bodies[0] = tweet_body if @num_files == 0 # default to unexpanded text if no images provided
     @num_files.times do |i|
       unique_id = @bridge.get_item_unique_id(i+1)
       tweet_bodies[unique_id] = @bridge.expand_vars(tweet_body, i+1)
@@ -523,7 +525,7 @@ class TwitterFileUploader
 
   def adjust_tweet_length_indicator
     tweet_bodies = get_tweet_bodies
-    remaining = @max_tweet_length - (tweet_bodies.map { |i, t| t.length }).max
+    remaining = @max_tweet_length - (tweet_bodies.map { |i, t| t.jsize }).max
     @ui.tweet_length_static.set_text(remaining.to_s)
   end
 
@@ -974,7 +976,12 @@ class TwitterUploadProtocol
     fcontents = @bridge.read_file_for_upload(fname)
 
     tweet_body = spec.tweet_bodies[spec.unique_id]
-    tweet_body = tweet_body[0..(spec.max_tweet_length-1)] if tweet_body.length > spec.max_tweet_length
+    if tweet_body.jsize > spec.max_tweet_length
+      body = ""
+      i = 0
+      tweet_body.each_char { |c| body += c if i < spec.max_tweet_length; i += 1 }
+      tweet_body = body
+    end
     mime = MimeMultipart.new
     mime.add_field("status", tweet_body)
     mime.add_field("source", '<a href="http://store.camerabits.com">Photo Mechanic 5</a>')
