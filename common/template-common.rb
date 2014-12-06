@@ -875,8 +875,6 @@ class OAuthConnectionSettingsUI
 end
 
 class OAuthConnectionSettings
-  #include PM::ConnectionSettingsTemplate
-
   DLG_SETTINGS_KEY = :connection_settings_dialog
 
   def self.template_display_name
@@ -1135,7 +1133,6 @@ class OAuthBackgroundDataFetchWorker
 end
 
 class OAuthFileUploader
-  include PM::FileUploaderTemplate
   include ImageProcessingControlsLogic
   include OperationsControlsLogic
   include RenamingControlsLogic
@@ -1159,17 +1156,14 @@ class OAuthFileUploader
 
   def self.conn_settings_class
     raise "self.conn_settings_class needs to be overridden in #{self.class}"
-    #OAuthConnectionSettings
   end
 
   def self.upload_protocol_class
     raise "self.upload_protocol_class needs to be overridden in #{self.class}"
-    OAuthUploadProtocol
   end
 
   def self.background_data_fetch_worker_manager
     raise "self.background_data_fetch_worker_manager needs to be overridden in #{self.class}"
-    OAuthBackgroundDataFetchWorker
   end
 
   def initialize(pm_api_bridge, num_files, dlg_status_bridge, conn_settings_serializer)
@@ -1329,10 +1323,6 @@ class OAuthFileUploader
     # Token and secret
     spec.token = account.auth_token
     spec.token_secret = account.auth_token_secret
-
-    # We're limiting concurrent uploads to 1 by default
-    # You can override this in e.g. the build_additional_upload_spec method
-    spec.max_concurrent_uploads = 1
 
     spec.num_files = @num_files
 
