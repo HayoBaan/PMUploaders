@@ -1330,11 +1330,8 @@ class OAuthFileUploader
     spec.token = account.auth_token
     spec.token_secret = account.auth_token_secret
 
-    # FIXME: we're limiting concurrent uploads to 1 because
-    #        end of queue notification happens per uploader thread
-    #        and we can still be uploading, causing
-    #        partially transmitted files get prematurely
-    #        harvested on the server side
+    # We're limiting concurrent uploads to 1 by default
+    # You can override this in e.g. the build_additional_upload_spec method
     spec.max_concurrent_uploads = 1
 
     spec.num_files = @num_files
