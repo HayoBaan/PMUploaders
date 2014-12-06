@@ -261,6 +261,8 @@ class U500pxBackgroundDataFetchWorker < OAuthBackgroundDataFetchWorker
 end
 
 class U500pxFileUploader < OAuthFileUploader
+  include PM::FileUploaderTemplate  # This also registers the class as File Uploader
+
   def self.conn_settings_class
     U500pxConnectionSettings
   end
@@ -313,9 +315,6 @@ class U500pxFileUploader < OAuthFileUploader
 
   def build_additional_upload_spec(spec, ui)
     build_operations_spec(spec, ui)
-
-    # Create a setting for this?
-    spec.max_concurrent_uploads = 4
 
     metadata = {
       "category" => @ui.meta_category_combo.get_selected_item.to_i.to_s,
