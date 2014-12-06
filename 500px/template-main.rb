@@ -314,6 +314,9 @@ class U500pxFileUploader < OAuthFileUploader
   def build_additional_upload_spec(spec, ui)
     build_operations_spec(spec, ui)
 
+    # Create a setting for this?
+    spec.max_concurrent_uploads = 4
+
     metadata = {
       "category" => @ui.meta_category_combo.get_selected_item.to_i.to_s,
       "nsfw" => @ui.meta_nsfw_check.checked? ? "1" : "0",
