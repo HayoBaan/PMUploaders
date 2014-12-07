@@ -37,7 +37,6 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
     create_control(:send_desc_edit,             EditControl,    dlg, :value=>"Note: #{TEMPLATE_DISPLAY_NAME}'s supported image formats are PNG, JPG and GIF. #{TEMPLATE_DISPLAY_NAME} removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media.", :multiline=>true, :readonly=>true, :persist=>false)
     create_jpeg_controls(dlg)
     create_image_processing_controls(dlg)
-    #create_operations_controls(dlg)
   end
 
   def layout_controls(container)
@@ -47,7 +46,6 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
 
     container.layout_with_contents(@tweet_group_box, 0, container.base, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
-      # c << @tweet_static.layout(0, c.base + 8, 100, sh)
       c << @tweet_edit.layout(0, c.base, "100%", eh*2)
       c.pad_down(2).mark_base
       c << @tweet_length_static.layout(-80, c.base, 80, sh)
@@ -151,8 +149,6 @@ class TwitterFileUploader < OAuthFileUploader
 
     add_jpeg_controls_event_hooks
     add_image_processing_controls_event_hooks
-    #add_operations_controls_event_hooks
-    #set_seqn_static_to_current_seqn
 
     @last_status_txt = nil
 
@@ -182,7 +178,7 @@ class TwitterFileUploader < OAuthFileUploader
   def get_tweet_bodies
     # Expand variables in tweets for each image
     tweet_bodies = {}
-    tweet_bodies[0] = tweet_body if @num_files == 0 # default to unexpanded text if no images provided
+    tweet_bodies[0] = tweet_body if @num_files == 0 # Default to unexpanded text if no images provided
     @num_files.times do |i|
       unique_id = @bridge.get_item_unique_id(i+1)
       tweet_bodies[unique_id] = @bridge.expand_vars(tweet_body, i+1)
