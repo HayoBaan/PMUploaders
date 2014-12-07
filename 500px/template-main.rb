@@ -21,10 +21,7 @@ end
 
 class U500pxFileUploaderUI < OAuthFileUploaderUI
   def create_controls(dlg)
-    create_control(:dest_account_group_box,    GroupBox,    dlg, :label=>"Destination 500px Account:")
-    create_control(:dest_account_static,       Static,      dlg, :label=>"Account")
-    create_control(:dest_account_combo,        ComboBox,    dlg, :sorted=>true, :persist=>false)
-
+    super
     create_control(:meta_left_group_box,       GroupBox,    dlg, :label=>"500px Metadata:")
     create_control(:meta_category_static,      Static,      dlg, :label=>"Category")
     create_control(:meta_category_combo,       ComboBox,    dlg, :items=>[
@@ -116,21 +113,9 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
   end
 
   def layout_controls(container)
+    super
+    
     sh, eh = 20, 24
-
-    container.inset(15, 5, -5, -5)
-
-    container.layout_with_contents(@dest_account_group_box, 0, 0, -1, -1) do |c|
-      c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
-
-      c << @dest_account_static.layout(0, c.base+3, 80, sh)
-      c << @dest_account_combo.layout(c.prev_right, c.base, 200, eh)
-
-      c.pad_down(5).mark_base
-      c.mark_base.size_to_base
-    end
-
-    container.pad_down(5).mark_base
 
     container.layout_with_contents(@meta_left_group_box, 0, container.base, "50%-5", -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
