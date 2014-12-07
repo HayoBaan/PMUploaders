@@ -1096,10 +1096,26 @@ class OAuthFileUploaderUI
     @bridge = pm_api_bridge
   end
 
+  def metadata_safe?
+    false # default is to assume metadata is not safe!
+  end
+
   def create_controls(dlg)
     create_control(:dest_account_group_box,    GroupBox,    dlg, :label=>"Destination #{TEMPLATE_DISPLAY_NAME} Account:")
     create_control(:dest_account_static,       Static,      dlg, :label=>"Account")
     create_control(:dest_account_combo,        ComboBox,    dlg, :sorted=>true, :persist=>false)
+  end
+
+  def create_processing_controls(dlg)
+    create_control(:transmit_group_box,        GroupBox,    dlg, :label=>"Transmit:")
+    create_control(:send_original_radio,       RadioButton, dlg, :label=>"Original Photos")
+    create_control(:send_jpeg_radio,           RadioButton, dlg, :label=>"Saved as JPEG", :checked=>true)
+    RadioButton.set_exclusion_group(@send_original_radio, @send_jpeg_radio)
+    create_control(:send_desc_edit,            EditControl, dlg, :value=>"Note: #{TEMPLATE_DISPLAY_NAME}'s supported image formats are PNG, JPG and GIF.", :multiline=>true, :readonly=>true, :persist=>false)
+    create_jpeg_controls(dlg)
+    create_image_processing_controls(dlg)
+    create_control(:metadata_warning_edit,     EditControl, dlg, :value=>"Warning: #{TEMPLATE_DISPLAY_NAME} removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media.", :multiline=>true, :readonly=>true, :persist=>false)
+    create_operations_controls(dlg)
   end
 
   def layout_controls(container)
@@ -1118,6 +1134,65 @@ class OAuthFileUploaderUI
     end
 
     container.pad_down(5).mark_base
+  end
+
+  def layout_processing_controls(container)      
+    sh, eh = 20, 24
+
+    container.layout_with_contents(@transmit_group_box, 0, container.base, "50%-5", -1) do |c|
+      c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
+
+      c << @send_original_radio.layout(0, c.base, 120, eh)
+      c << @send_jpeg_radio.layout(0, c.base+eh+5, 120, eh)
+      c << @send_desc_edit.layout(c.prev_right+5, c.base, -1, 2*eh)
+      c.pad_down(5).mark_base
+
+      layout_jpeg_controls(c, eh, sh)
+
+      c.layout_with_contents(@imgproc_group_box, 0, c.base, -1, -1) do |cc|
+        cc.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
+
+        layout_image_processing_controls(cc, eh, sh, 80, 200, 120)
+
+        cc.pad_down(5).mark_base
+        cc.mark_base.size_to_base
+      end
+
+      c.pad_down(5).mark_base
+      c.mark_base.size_to_base
+    end
+
+    container.layout_with_contents(@operations_group_box, "50%+5", container.base, -1, -1) do |c|
+      c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
+
+      if (metadata_safe?)
+        c << @apply_iptc_check.layout(0, c.base, "50%-5", eh)
+        c << @stationery_pad_btn.layout("-50%+5", c.base, -1, eh)
+        c.pad_down(5).mark_base
+        c << @preserve_exif_check.layout(0, c.base, -1, eh)
+      else
+        dbgprint("HARE")
+        c << @metadata_warning_edit.layout(0, c.base, "100%", 2*eh)
+        dbgprint("NOT HARE")
+      end
+      c.pad_down(5).mark_base
+
+      c << @save_copy_check.layout(0, c.base, -1, eh)
+      c.pad_down(5).mark_base
+      c << @save_copy_subdir_radio.layout(30, c.base, "50%-35", eh)
+      c << @save_copy_subdir_edit.layout("50%+5", c.base, -1, eh)
+      c.pad_down(5).mark_base
+      c << @save_copy_userdir_radio.layout(30, c.base, "50%", eh)
+      c << @save_copy_choose_userdir_btn.layout("50%+5", c.base, -1, eh)
+      c.pad_down(5).mark_base
+      c << @save_copy_userdir_static.layout(0, c.base, -1, 2*sh)
+
+      c.pad_down(5).mark_base
+      c.mark_base.size_to_base
+    end
+
+    container.pad_down(5).mark_base
+    container.mark_base.size_to_base
   end
 
   def have_source_raw_jpeg_controls?
@@ -1179,6 +1254,10 @@ class OAuthFileUploader
     "Upload images to #{self.template_display_name}"
   end
 
+  def self.file_uploader_ui_class
+    raise "self.file_uploader_ui_class needs to be overridden in #{self.class}"
+  end
+
   def self.conn_settings_class
     raise "self.conn_settings_class needs to be overridden in #{self.class}"
   end
@@ -1210,6 +1289,24 @@ class OAuthFileUploader
     build_additional_upload_spec(spec, ui)
 
     @bridge.kickoff_template_upload(spec, self.class.upload_protocol_class)
+  end
+
+  def create_controls(dlg)
+    @ui = self.class.file_uploader_ui_class.new(@bridge)
+    @ui.create_controls(dlg)
+
+    @ui.send_original_radio.on_click { adjust_controls }
+    @ui.send_jpeg_radio.on_click { adjust_controls }
+    @ui.dest_account_combo.on_sel_change { account_parameters_changed }
+
+    add_jpeg_controls_event_hooks
+    add_image_processing_controls_event_hooks
+    add_operations_controls_event_hooks
+    set_seqn_static_to_current_seqn
+
+    @last_status_txt = nil
+
+    create_data_fetch_worker
   end
 
   def layout_controls(container)
@@ -1301,6 +1398,19 @@ class OAuthFileUploader
     ! (account_empty? || account_invalid?)
   end
 
+  def preflight_settings(global_spec)
+    raise "preflight_settings called with no @ui instantiated" unless @ui
+
+    acct = current_account_settings
+    raise "Failed to load settings for current account. Please click the Connections button." unless acct
+    raise "Some account settings appear invalid or missing. Please click the Connections button." unless acct.appears_valid?
+
+    preflight_jpeg_controls
+    preflight_wait_account_parameters_or_timeout
+
+    build_upload_spec(acct, @ui)
+  end
+
   def imglink_button_spec
     { :filename => "logo.tif", :bgcolor => "ffffff" }
   end
@@ -1361,8 +1471,18 @@ class OAuthFileUploader
     
     build_jpeg_spec(spec, ui)
     build_image_processing_spec(spec, ui)
+    build_operations_spec(spec, ui)
+
+    if !@ui.metadata_safe?
+      spec.apply_stationery_pad = false
+      spec.preserve_exif = false
+    end
 
     spec
+  end
+
+  def build_additional_upload_spec
+    # Override in subclass to add additional data to the upload spec
   end
 
   def fetch_conn_settings_data
