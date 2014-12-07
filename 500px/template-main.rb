@@ -386,7 +386,6 @@ class U500pxClient < OAuthClient
     response = connection.get('users')
     connection.require_server_success_response(response)
     response_body = JSON.parse(response.body)
-    @verifier = verifier
     name = "#{response_body['user']['username']} (#{response_body['user']['fullname']})"
     name
   end

@@ -1,3 +1,4 @@
+# coding: utf-8
 
 FileSkippedException = RuntimeError.new("***SKIPPED***")
 
@@ -900,17 +901,17 @@ class OAuthConnectionSettings
   end
 
   class SettingsData
-    attr_accessor :auth_token, :auth_token_secret
+    attr_accessor :access_token, :access_token_secret
 
     def initialize(name, token, token_secret)
       @account_name = name
-      @auth_token = token
-      @auth_token_secret = token_secret
+      @access_token = token
+      @access_token_secret = token_secret
       self
     end
 
     def appears_valid?
-      return ! (@account_name.nil? || @account_name.empty? || @auth_token.nil? || @auth_token.empty? || @auth_token_secret.nil? || @auth_token_secret.empty?)
+      return ! (@account_name.nil? || @account_name.empty? || @access_token.nil? || @access_token.empty? || @access_token_secret.nil? || @access_token_secret.empty?)
     rescue
       false
     end
@@ -918,7 +919,7 @@ class OAuthConnectionSettings
     def self.serialize_settings_hash(settings)
       out = {}
       settings.each_pair do |key, dat|
-        out[key] = [dat.auth_token, dat.auth_token_secret]
+        out[key] = [dat.access_token, dat.access_token_secret]
       end
       out
     end
@@ -1276,10 +1277,6 @@ class OAuthFileUploader
     ! (account_empty? || account_invalid?)
   end
 
-  def disable_ui
-    @ui.send_button.enable(false)
-  end
-
   def imglink_button_spec
     { :filename => "logo.tif", :bgcolor => "ffffff" }
   end
@@ -1321,8 +1318,8 @@ class OAuthFileUploader
     spec.log_upload_acct      = spec.upload_display_name
 
     # Token and secret
-    spec.token = account.auth_token
-    spec.token_secret = account.auth_token_secret
+    spec.token = account.access_token
+    spec.token_secret = account.access_token_secret
 
     spec.num_files = @num_files
 
@@ -1404,8 +1401,8 @@ class OAuthConnection
   end
 
   def reset!
-    access_token = nil
-    access_token_secret = nil
+    @access_token = nil
+    @access_token_secret = nil
   end
 
   def authenticated?
@@ -1437,30 +1434,28 @@ class OAuthConnection
 
   def require_server_success_response(resp)
     unless resp.code == "200"
-      dbgprint("Server connection failed: #{resp.inspect}\n#{resp.body}")
+      dbglog("Server connection failed: #{resp.inspect}\nBODY=“#{resp.body}”")
       raise(RuntimeError, resp.inspect)
     end
   end 
-
-  def set_tokens_from_post(path, verifier=nil)
-    @verifier = verifier
-    response = post(path)
-    require_server_success_response(response)    
-    result = CGI::parse(response.body)
-    @access_token = result['oauth_token'].to_s
-    @access_token_secret = result['oauth_token_secret'].to_s
-    raise "Unable to verify code" unless !@verifier.nil? || authenticated?
-    result
-  end
 
   def set_tokens(token, token_secret)
     @access_token = token
     @access_token_secret = token_secret
   end
 
+  def set_tokens_from_post(path, verifier=nil)
+    @verifier = verifier
+    response = post(path)
+    require_server_success_response(response)    
+    result = CGI::parse(response.body)
+    set_tokens(result['oauth_token'].to_s, result['oauth_token_secret'].to_s)
+    raise "Unable to verify code" unless !@verifier.nil? || authenticated?
+    result
+  end
+
   def set_tokens_from_settings(settings = {})
-    connection.access_token = settings[:token]
-    connection.access_token_secret = settings[:token_secret]
+    set_tokens(settings[:token], settings[:token_secret])
   end
 
   protected
