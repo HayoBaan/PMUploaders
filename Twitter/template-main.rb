@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
+# coding: utf-8
 ##############################################################################
+#
 # Copyright (c) 2014 Camera Bits, Inc.  All rights reserved.
 #
 # Additional development by Hayo Baan
@@ -22,9 +24,15 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
   def create_controls(dlg)
     super
 
-    create_control(:tweet_group_box,            GroupBox,       dlg, :label=> "Tweet:")
-    create_control(:tweet_edit,                 EditControl,    dlg, :value=> "Tweeted with PhotoMechanic of @CameraBits", :multiline=>true, :persist=> true, :align => 'right')
-    create_control(:tweet_length_static,        Static,         dlg, :label=> "140", :align => 'right')
+    create_control(:tweet_group_box,         GroupBox,    dlg, :label=> "Tweet:")
+    create_control(:tweet_edit,              EditControl, dlg, :value=> "Tweeted with PhotoMechanic of @CameraBits", :multiline=>true, :persist=> true, :align => 'right')
+    create_control(:tweet_length_static,     Static,      dlg, :label=> "140", :align => 'right')
+    create_control(:tweet_sensitive_check,   CheckBox,    dlg, :label=> "Possibly sensitive?")
+    create_control(:tweet_coordinates_check, CheckBox,    dlg, :label=> "Display excact coordinates?")
+    create_control(:tweet_latitude_static,   Static,      dlg, :label=> "Latitude:")
+    create_control(:tweet_latitude_edit,     EditControl, dlg, :value=> "{latitude}", :multiline=>false)
+    create_control(:tweet_longitude_static,  Static,      dlg, :label=> "Longitude:")
+    create_control(:tweet_longitude_edit,    EditControl, dlg, :value=> "{longitude}", :multiline=>false)
 
     create_processing_controls(dlg)
   end
@@ -32,13 +40,21 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
   def layout_controls(container)
     super
     
-    sh, eh = 20, 24
+    sh, eh, w = 20, 24, 160
 
     container.layout_with_contents(@tweet_group_box, 0, container.base, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
-      c << @tweet_edit.layout(0, c.base, "100%", eh*2)
+      c << @tweet_edit.layout(0, c.base, -1, eh*2)
       c.pad_down(2).mark_base
-      c << @tweet_length_static.layout(-80, c.base, 80, sh)
+      c << @tweet_length_static.layout(-80, c.base, -1, sh)
+      c << @tweet_latitude_static.layout(200, c.base+3, w, sh)
+      c << @tweet_longitude_static.layout(c.prev_right+10, c.base+3, w, sh)
+      c.pad_down(0).mark_base
+      c << @tweet_coordinates_check.layout(0, c.base, 200, sh)
+      c << @tweet_latitude_edit.layout(200, c.base, w, eh)
+      c << @tweet_longitude_edit.layout(c.prev_right+10, c.base, w, eh)
+      c.pad_down(5).mark_base
+      c << @tweet_sensitive_check.layout(0, c.base, 200, sh)
 
       c.pad_down(5).mark_base
       c.mark_base.size_to_base
@@ -106,29 +122,34 @@ class TwitterFileUploader < OAuthFileUploader
     # Twitter doesn't allow concurrent uploads
     spec.max_concurrent_uploads = 1
 
-    spec.tweet_bodies = get_tweet_bodies
+    spec.tweet_info = get_tweet_info
+    spec.tweet_sensitive = @ui.tweet_sensitive_check.checked? ? "true" : "false"
+    spec.tweet_coordinates = @ui.tweet_coordinates_check.checked? ? "true" : "false"
     spec.max_tweet_length = @max_tweet_length
   end
 
-  def get_tweet_bodies
+  def create_image_tweet_info(body, lat="", long="")
+    { "body" => body, "lat" => convert_gps_coordinate(lat), "long" => convert_gps_coordinate(long) }
+  end
+
+  def get_tweet_info
     # Expand variables in tweets for each image
-    tweet_bodies = {}
-    tweet_bodies[0] = tweet_body if @num_files == 0 # Default to unexpanded text if no images provided
+    tweet_body = @ui.tweet_edit.get_text
+    tweet_latitude = @ui.tweet_latitude_edit.get_text
+    tweet_longitude = @ui.tweet_longitude_edit.get_text
+    tweet_info = {}
+    tweet_info[0] = create_image_tweet_info(tweet_body) if @num_files == 0 # Default to unexpanded text if no images provided
     @num_files.times do |i|
       unique_id = @bridge.get_item_unique_id(i+1)
-      tweet_bodies[unique_id] = @bridge.expand_vars(tweet_body, i+1)
+      tweet_info[unique_id] = create_image_tweet_info(@bridge.expand_vars(tweet_body, i+1), @bridge.expand_vars(tweet_latitude, i+1), @bridge.expand_vars(tweet_longitude, i+1))
     end
-    tweet_bodies
+    tweet_info
   end
 
   def adjust_tweet_length_indicator
-    tweet_bodies = get_tweet_bodies
-    remaining = @max_tweet_length - (tweet_bodies.map { |i, t| t.jsize }).max
+    tweet_info = get_tweet_info
+    remaining = @max_tweet_length - (tweet_info.map { |i, t| t["body"].jsize }).max
     @ui.tweet_length_static.set_text(remaining.to_s)
-  end
-
-  def tweet_body
-    @ui.tweet_edit.get_text
   end
 end
 
@@ -157,7 +178,7 @@ class TwitterUploadProtocol < OAuthUploadProtocol
   end  
   
   def tweet_body(spec)
-    tweet_body = spec.tweet_bodies[spec.unique_id]
+    tweet_body = spec.tweet_info[spec.unique_id]["body"]
     if tweet_body.jsize > spec.max_tweet_length
       body = ""
       i = 0
@@ -171,8 +192,10 @@ class TwitterUploadProtocol < OAuthUploadProtocol
     fcontents = @bridge.read_file_for_upload(fname)
     mime = MimeMultipart.new
     mime.add_field("status", tweet_body(spec))
-    mime.add_field("source", '<a href="http://store.camerabits.com">Photo Mechanic 5</a>')
-    mime.add_field("include_entities", "true")
+    mime.add_field("possibly_sensitive", spec.tweet_sensitive)
+    mime.add_field("display_coordinates", spec.tweet_coordinates)
+    mime.add_field("lat", spec.tweet_info[spec.unique_id]["lat"])
+    mime.add_field("long", spec.tweet_info[spec.unique_id]["long"])
     mime.add_image("media[]", remote_filename, fcontents, "application/octet-stream")
     data, headers = mime.generate_data_and_headers
 

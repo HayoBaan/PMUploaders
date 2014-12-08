@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # coding: utf-8
 ##############################################################################
+#
 # Copyright (c) 2014 Camera Bits, Inc.  All rights reserved.
 #
 # Developed by Hayo Baan
@@ -23,7 +24,6 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
   def metadata_safe?
     true
   end
-
 
   def create_controls(dlg)
     super
@@ -240,34 +240,10 @@ class U500pxFileUploader < OAuthFileUploader
       spec.metadata[unique_id] = {}
       metadata.each_pair do |item, value|
         interpreted_value = @bridge.expand_vars(value, i+1)
-        interpreted_value = convertGPS(interpreted_value) if !(item =~ /^(long|lat)itude$/).nil?
+        interpreted_value = convert_gps_coordinate(interpreted_value) if !(item =~ /^(long|lat)itude$/).nil?
         spec.metadata[unique_id][item] = interpreted_value
       end
     end
-  end
-
-  def convertGPS(gpscoordinate)
-    gpscoordinate = gpscoordinate.strip
-    if !gpscoordinate.empty?
-      if !(gpscoordinate =~ /^[\d.+-]+$/).nil?
-        gpscoordinate = gpscoordinate.to_f
-      elsif !(gpscoordinate =~ /^[NESW]?\s*([\d.+-]+[°'′"″]){1,3}(\s*[NESW])?$/).nil?
-        # Coordinates can be given as numeric or as degrees, minutes, seconds
-        angle  = 0
-        gpscoordinate.scan(/([\d.+-]+)([°'′"″])/) { |n, denominator|
-          n = n.to_f
-          n /= 60 if denominator != '°' # Minutes or seconds
-          n /= 60 if denominator == '"' || denominator == '″' # Seconds
-          angle += n
-        }
-        angle *= (gpscoordinate =~ /[SW]/).nil? ? 1 : -1 # Negative numbers if coordinate in S or W
-        gpscoordinate = "#{angle}"
-      else
-        dbgprint "Invalid GPS coordinate specification: #{gpscoordinate}"
-        gpscoordinate = ""
-      end
-    end
-    gpscoordinate
   end
 end
 
@@ -314,15 +290,6 @@ class U500pxUploadProtocol < OAuthUploadProtocol
     @connection_image_upload ||= U500pxConnectionImageUpload.new(@bridge)
   end
   
-  def create_query_string( query_hash = {} )
-    qstr = ""
-    query_hash.each_pair do |key, value|
-      qstr += (qstr.empty? ? "?" : "&")
-      qstr += "#{key}=" + URI.escape(value.to_s)
-    end
-    qstr
-  end
-
   def upload(fname, remote_filename, spec)
     fcontents = @bridge.read_file_for_upload(fname)
     mime = MimeMultipart.new
@@ -332,7 +299,7 @@ class U500pxUploadProtocol < OAuthUploadProtocol
     begin
       @mute_transfer_status = false
       # Get upload_key & photo_id
-      response = connection.post('photos' + create_query_string(spec.metadata[spec.unique_id]))
+      response = connection.post('photos' + create_query_string_from_hash(spec.metadata[spec.unique_id]))
       connection.require_server_success_response(response)
       response_body = JSON.parse(response.body)
       upload_qstr = create_query_string(

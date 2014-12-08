@@ -801,7 +801,12 @@ end
 
 
 ##############################################################################
-# Super classes for OAuth based uploaders ####################################
+#
+# Super classes with generic functionality for OAuth based uploaders
+# See the Twitter and 500px uploaders for implementations examples
+#
+# Developed by Hayo Baan
+#
 ##############################################################################
 
 class OAuthConnectionSettingsUI
@@ -1171,9 +1176,7 @@ class OAuthFileUploaderUI
         c.pad_down(5).mark_base
         c << @preserve_exif_check.layout(0, c.base, -1, eh)
       else
-        dbgprint("HARE")
         c << @metadata_warning_edit.layout(0, c.base, "100%", 2*eh)
-        dbgprint("NOT HARE")
       end
       c.pad_down(5).mark_base
 
@@ -1433,12 +1436,35 @@ class OAuthFileUploader
     end
   end
 
-  def display_message_box(text)
-    Dlg::MessageBox.ok(text, Dlg::MessageBox::MB_ICONEXCLAMATION)
-  end
-
   def adjust_controls
     adjust_image_processing_controls
+  end
+
+  def convert_gps_coordinate(gpscoordinate)
+    gpscoordinate = gpscoordinate.strip
+    angle = nil
+    if !gpscoordinate.empty?
+      if !(gpscoordinate =~ /^[NESW]?[\d.+-]+[NESW]?$/).nil?
+        angle = gpscoordinate.tr("NESW","").to_f
+      elsif !(gpscoordinate =~ /^[NESW]?\s*([\d.+-]+[°'′"″]){1,3}(\s*[NESW])?$/).nil?
+        # Coordinates can be given as numeric or as degrees, minutes, seconds
+        angle = 0
+        gpscoordinate.scan(/([\d.+-]+)([°'′"″])/) { |n, denominator|
+          n = n.to_f
+          n /= 60 if denominator != '°' # Minutes or seconds
+          n /= 60 if denominator == '"' || denominator == '″' # Seconds
+          angle += n
+        }
+      else
+        dbgprint "Invalid GPS coordinate specification: #{gpscoordinate}"
+      end
+    end
+    if angle.nil?
+      angle = ""
+    else
+      angle *= (gpscoordinate =~ /[SW]/).nil? ? 1 : -1 # Negative numbers if coordinate in S or W
+    end
+    "#{angle}"
   end
 
   def build_upload_spec(acct, ui)
@@ -1576,10 +1602,30 @@ class OAuthConnection
     request(:post, path, params, headers)
   end
 
-  def require_server_success_response(resp)
-    unless resp.code == "200"
-      dbglog("Server connection failed: #{resp.inspect}\nBODY=“#{resp.body}”")
-      raise(RuntimeError, resp.inspect)
+  def require_server_success_response(response)
+    unless response.code == "200"
+      result = JSON::parse(response.body)
+      # Error can be in 'error' or 'errors'
+      err = result['error'] || result['errors']
+      begin
+        if err.kind_of?(Array)
+          # Handle array of messages
+          err = (err.map { |e|
+                   if e.kind_of?(Hash)
+                     raise "Unknown errors type" unless e['message']
+                     "#{e['message']}"
+                   else
+                     "#{e}"
+                   end
+                 }).join(", ")
+        end
+      rescue
+        # In case of conversion errors above
+        err = nil
+      end
+      # Fallback to whole body if no error found
+      err ||= response.body
+      raise "#{err}"
     end
   end 
 
@@ -1722,6 +1768,19 @@ class OAuthUploadProtocol
     @connection_settings_serializer = options[:connection_settings_serializer]
     mute_transfer_status
     close
+  end
+
+  def create_query_string_from_hash( query_hash = {} )
+    qstr = ""
+    query_hash.each_pair do |key, value|
+      qstr += (qstr.empty? ? "?" : "&")
+      qstr += "#{key}=" + URI.escape(value.to_s)
+    end
+    qstr
+  end
+
+  def upload(fname, remote_filename, spec)
+    raise "upload needs to be defined in class #{self.class}"
   end
 
   def mute_transfer_status
