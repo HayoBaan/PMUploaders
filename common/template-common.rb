@@ -1011,11 +1011,17 @@ class OAuthConnectionSettings
   end
 
   def handle_add_click
-    @ui.enable_code_entry
-    client.reset!
-    client.fetch_request_token
-    client.launch_application_authorization_in_browser
-    @prev_selected_settings_name = nil
+    begin
+      client.reset!
+      client.fetch_request_token
+      client.launch_application_authorization_in_browser
+      @ui.enable_code_entry
+      @prev_selected_settings_name = nil
+    rescue StandardError => e
+      msg = "Server error: #{e}"
+      dbglog msg
+      Dlg::MessageBox.ok(msg, Dlg::MessageBox::MB_ICONEXCLAMATION)
+    end
   end
 
   def handle_delete_click
@@ -1039,12 +1045,15 @@ class OAuthConnectionSettings
       result = client.get_access_token(code)
       @settings[client.name]  = SettingsData.new(client.name, client.access_token, client.access_token_secret)
       add_account_to_dropdown(client.name)
+      @ui.disable_code_entry("Verified #{client.name}")
     rescue
+      msg = "Failed to verify code"
+      @ui.disable_code_entry(msg)
       # Note: A failed verification requires a complete new round of authorization!
-      Dlg::MessageBox.ok("Failed to verify code, please retry to add the account.", Dlg::MessageBox::MB_ICONEXCLAMATION)
+      msg = "Error: #{msg}, please retry to add the account."
+      dbglog msg
+      Dlg::MessageBox.ok(msg, Dlg::MessageBox::MB_ICONEXCLAMATION)
     end
-
-    @ui.disable_code_entry("Verified #{client.name}")
   end
 
   protected
@@ -1456,7 +1465,7 @@ class OAuthFileUploader
           angle += n
         }
       else
-        dbgprint "Invalid GPS coordinate specification: #{gpscoordinate}"
+        dbglog "Invalid GPS coordinate specification: #{gpscoordinate}"
       end
     end
     if angle.nil?
@@ -1604,20 +1613,30 @@ class OAuthConnection
 
   def require_server_success_response(response)
     unless response.code == "200"
-      result = JSON::parse(response.body)
-      # Error can be in 'error' or 'errors'
-      err = result['error'] || result['errors']
+      begin
+        result = JSON::parse(response.body)
+        # Error can be in 'error' or 'errors'
+        err = result['error'] || result['errors']
+      rescue
+        # If result not in JSON, try xml <error></error> pairs
+        err = []       
+        response.body.scan(/<error>((?!<\/error>).*)<\/error>/m){ | e | err.push e }
+      end
       begin
         if err.kind_of?(Array)
           # Handle array of messages
-          err = (err.map { |e|
-                   if e.kind_of?(Hash)
-                     raise "Unknown errors type" unless e['message']
-                     "#{e['message']}"
-                   else
-                     "#{e}"
-                   end
-                 }).join(", ")
+          if err.length == 0
+            err = nil
+          else
+            err = (err.map { |e|
+                     if e.kind_of?(Hash)
+                       raise "Unknown errors type" unless e['message']
+                       "#{e['message']}"
+                     else
+                       "#{e}"
+                     end
+                   }).join(", ")
+          end
         end
       rescue
         # In case of conversion errors above
@@ -1625,7 +1644,10 @@ class OAuthConnection
       end
       # Fallback to whole body if no error found
       err ||= response.body
-      raise "#{err}"
+      err = err.strip
+      err = "Communication error #{response.code}" if err.empty? # Last resort if no body
+      dbglog "require_server_success_response: #{err}"
+      raise err
     end
   end 
 
@@ -1637,7 +1659,7 @@ class OAuthConnection
   def set_tokens_from_post(path, verifier=nil)
     @verifier = verifier
     response = post(path)
-    require_server_success_response(response)    
+    require_server_success_response(response)
     result = CGI::parse(response.body)
     set_tokens(result['oauth_token'].to_s, result['oauth_token_secret'].to_s)
     raise "Unable to verify code" unless !@verifier.nil? || authenticated?
