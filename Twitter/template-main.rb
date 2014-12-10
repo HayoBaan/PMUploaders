@@ -25,7 +25,7 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
     super
 
     create_control(:tweet_group_box,         GroupBox,    dlg, :label=> "Tweet:")
-    create_control(:tweet_edit,              EditControl, dlg, :value=> "Tweeted with Photo Mechanic of @CameraBits", :multiline=>true, :persist=> true, :align => 'right')
+    create_control(:tweet_edit,              EditControl, dlg, :value=> "– tweeted via @PhotoMechanic", :multiline=>true, :persist=> true, :align => 'right')
     create_control(:tweet_length_static,     Static,      dlg, :label=> "140", :align => 'right')
     create_control(:tweet_sensitive_check,   CheckBox,    dlg, :label=> "Sensitive content?")
     create_control(:tweet_coordinates_check, CheckBox,    dlg, :label=> "Display exact coordinates?")
