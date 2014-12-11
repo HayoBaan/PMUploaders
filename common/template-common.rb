@@ -1099,9 +1099,9 @@ class OAuthFileUploaderUI
   include AutoAccessor
   include CreateControlHelper
   include ImageProcessingControlsCreation
-  include ImageProcessingControlsLayout
+  include RenamingControlsCreation 
   include OperationsControlsCreation
-  include OperationsControlsLayout
+  include ImageProcessingControlsLayout
 
   SOURCE_RAW_LABEL = "Use the RAW"
   SOURCE_JPEG_LABEL = "Use the JPEG"
@@ -1114,6 +1114,20 @@ class OAuthFileUploaderUI
     false # default is to assume metadata is not safe!
   end
 
+  def enable_rename?
+    false # default is to not enable upload file renaming
+  end
+
+  def send_original_default?
+    false # default is to upload files converted to JPG
+  end
+
+  def valid_file_types
+    # List of supported file types (JPEG, PNG, TIFF, GIF, WAV) for uploading.
+    # An empty list means all files types are supported.
+    [ "JPEG" ] # Default is that only jpeg files are supported
+  end
+
   def create_controls(dlg)
     create_control(:dest_account_group_box,    GroupBox,    dlg, :label=>"Destination #{TEMPLATE_DISPLAY_NAME} Account:")
     create_control(:dest_account_static,       Static,      dlg, :label=>"Account")
@@ -1122,10 +1136,10 @@ class OAuthFileUploaderUI
 
   def create_processing_controls(dlg)
     create_control(:transmit_group_box,        GroupBox,    dlg, :label=>"Transmit:")
-    create_control(:send_original_radio,       RadioButton, dlg, :label=>"Original Photos")
-    create_control(:send_jpeg_radio,           RadioButton, dlg, :label=>"Saved as JPEG", :checked=>true)
+    create_control(:send_original_radio,       RadioButton, dlg, :label=>"Original Photos", :checked=>send_original_default?)
+    create_control(:send_jpeg_radio,           RadioButton, dlg, :label=>"Saved as JPEG", :checked=>!send_original_default?)
     RadioButton.set_exclusion_group(@send_original_radio, @send_jpeg_radio)
-    create_control(:send_desc_edit,            EditControl, dlg, :value=>"Note: #{TEMPLATE_DISPLAY_NAME}'s supported image formats are PNG, JPG and GIF.", :multiline=>true, :readonly=>true, :persist=>false)
+    create_control(:send_desc_edit,            EditControl, dlg, :value=>"Note: #{TEMPLATE_DISPLAY_NAME}'s supported image format#{valid_file_types.length > 1 ? 's are:' : ' is only:'} #{valid_file_types.join(', ').sub(/, (?!.*,)/, valid_file_types.length > 2 ? ', ' : ' and ')}. All other image formats are automatically converted to JPEG.", :multiline=>true, :readonly=>true, :persist=>false)
     create_jpeg_controls(dlg)
     create_image_processing_controls(dlg)
     create_control(:metadata_warning_edit,     EditControl, dlg, :value=>"Warning: #{TEMPLATE_DISPLAY_NAME} removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media.", :multiline=>true, :readonly=>true, :persist=>false)
@@ -1158,7 +1172,7 @@ class OAuthFileUploaderUI
 
       c << @send_original_radio.layout(0, c.base, 120, eh)
       c << @send_jpeg_radio.layout(0, c.base+eh+5, 120, eh)
-      c << @send_desc_edit.layout(c.prev_right+5, c.base, -1, 2*eh)
+      c << @send_desc_edit.layout(c.prev_right+5, c.base, -1, 2*eh) if !valid_file_types.empty?
       c.pad_down(5).mark_base
 
       layout_jpeg_controls(c, eh, sh)
@@ -1189,6 +1203,17 @@ class OAuthFileUploaderUI
       end
       c.pad_down(5).mark_base
 
+      if enable_rename?
+        c << @rename_as_check.layout(0, c.base, 100, eh)
+        c.pad_down(5).mark_base
+        c << @rename_string_edit.layout(0, c.base, -100, eh)
+        c << @use_seqn_check.layout(-90, c.base, -1, eh)
+        c.pad_down(5).mark_base
+        c << @seqn_static.layout(10, c.base+3, "50%-5", sh)
+        c << @set_seqn_btn.layout("-50%+5", c.base, -1, eh)
+        c.pad_down(5).mark_base
+      end
+
       c << @save_copy_check.layout(0, c.base, -1, eh)
       c.pad_down(5).mark_base
       c << @save_copy_subdir_radio.layout(30, c.base, "50%-35", eh)
@@ -1198,8 +1223,8 @@ class OAuthFileUploaderUI
       c << @save_copy_choose_userdir_btn.layout("50%+5", c.base, -1, eh)
       c.pad_down(5).mark_base
       c << @save_copy_userdir_static.layout(0, c.base, -1, 2*sh)
-
       c.pad_down(5).mark_base
+
       c.mark_base.size_to_base
     end
 
@@ -1314,7 +1339,11 @@ class OAuthFileUploader
     add_jpeg_controls_event_hooks
     add_image_processing_controls_event_hooks
     add_operations_controls_event_hooks
-    set_seqn_static_to_current_seqn
+
+    if @ui.enable_rename?
+      set_seqn_static_to_current_seqn
+      add_renaming_controls_event_hooks
+    end
 
     @last_status_txt = nil
 
@@ -1418,6 +1447,7 @@ class OAuthFileUploader
     raise "Some account settings appear invalid or missing. Please click the Connections button." unless acct.appears_valid?
 
     preflight_jpeg_controls
+    preflight_renaming_controls if @ui.enable_rename?
     preflight_wait_account_parameters_or_timeout
 
     build_upload_spec(acct, @ui)
@@ -1447,6 +1477,8 @@ class OAuthFileUploader
 
   def adjust_controls
     adjust_image_processing_controls
+    adjust_operations_controls
+    adjust_renaming_controls
   end
 
   def convert_gps_coordinate(gpscoordinate)
@@ -1499,14 +1531,25 @@ class OAuthFileUploader
     #       queue keys.
     spec.upload_queue_key = self.class.template_display_name
 
-    spec.upload_processing_type = ui.send_original_radio.checked? ? "originals_jpeg_only" : "save_as_jpeg"
+    processing_orgs_type = "originals"
+    if !ui.valid_file_types.empty?
+      [ "GIF", "JPEG", "PNG", "TIFF" ].map { |t|
+        processing_orgs_type += "_#{t.downcase}" if ui.valid_file_types.include?(t)
+      }
+      processing_orgs_type +=  "_only"
+    end
+    spec.upload_processing_type = ui.send_original_radio.checked? ? processing_orgs_type : "save_as_jpeg"
     spec.send_incompatible_originals_as = "JPEG"
-    spec.send_wav_files = false
-    spec.do_rename = false
+    spec.send_wav_files = ui.valid_file_types.empty? || ui.valid_file_types.include?("WAV")
     
     build_jpeg_spec(spec, ui)
     build_image_processing_spec(spec, ui)
     build_operations_spec(spec, ui)
+    if ui.enable_rename?
+      build_renaming_spec(spec, ui)
+    else
+      spec.do_rename = false
+    end
 
     if !@ui.metadata_safe?
       spec.apply_stationery_pad = false

@@ -25,6 +25,10 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
     true
   end
 
+  def valid_file_types
+    [ "JPEG" ]
+  end
+
   def create_controls(dlg)
     super
     create_control(:meta_left_group_box,       GroupBox,    dlg, :label=>"500px Metadata:")
