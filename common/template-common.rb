@@ -1046,12 +1046,12 @@ class OAuthConnectionSettings
       @settings[client.name]  = SettingsData.new(client.name, client.access_token, client.access_token_secret)
       add_account_to_dropdown(client.name)
       @ui.disable_code_entry("Verified #{client.name}")
-    rescue
+    rescue StandardError => e
       msg = "Failed to verify code"
       @ui.disable_code_entry(msg)
+      dbglog "#{msg}: #{e}"
       # Note: A failed verification requires a complete new round of authorization!
       msg = "Error: #{msg}, please retry to add the account."
-      dbglog msg
       Dlg::MessageBox.ok(msg, Dlg::MessageBox::MB_ICONEXCLAMATION)
     end
   end
@@ -1263,7 +1263,7 @@ class OAuthBackgroundDataFetchWorker
     elsif @dlg.num_files == 0
         @dlg.set_status_text("No images selected!")
     else
-      @dlg.set_status_text("You are logged in and ready to upload your " + (@dlg.num_files > 1 ? "#{@dlg.num_files} images." : "image."))
+      @dlg.set_status_text("You are ready to upload your " + (@dlg.num_files > 1 ? "#{@dlg.num_files} images." : "image."))
     end
     @dlg.account_parameters_dirty = false
   end
@@ -1610,8 +1610,25 @@ class OAuthFileUploader
 end
 
 class OAuthConnection
-  attr_reader :api_key, :access_token, :access_token_secret
-  attr_reader :base_url
+  attr_reader :api_key, :api_secret
+  attr_reader :access_token, :access_token_secret
+  attr_reader :base_url, :callback_url
+
+  def create_query_string_from_hash( query_hash = {} )
+    qstr = ""
+    query_hash.each_pair do |key, value|
+      qstr += (qstr.empty? ? "?" : "&")
+      qstr += "#{key}=" + URI.escape(value.to_s)
+    end
+    qstr
+  end
+
+  def log_server_response(method, response)
+    if PM::Logging.query_logging_active_for?("HTTP_RESPONSE_LOGGING")
+      dbglog "http/response: #{method.to_s.upcase} #{response.inspect}, #{response.body}"
+    end
+    response
+  end
 
   def initialize(pm_api_bridge)
     raise "@base_url needs to be defined in #{self.class}.initialize" if @base_url.nil?
@@ -1643,18 +1660,26 @@ class OAuthConnection
   end
 
   def get(path, params = {})
-    headers = request_headers(:get, @base_url + path, params, {})
+    headers = request_headers(:get, @base_url + path, params, {})  
     request(:get, path, params, headers)
   end
 
+  def put(path, params = {}, upload_headers = {})
+    headers = request_headers(:put, @base_url + path, params, {})
+    headers.merge!(upload_headers)
+    request(:put, path, params, headers)
+  end
+
   def post(path, params = {}, upload_headers = {})
-    uri = @base_url + path
-    headers = request_headers(:post, uri, params, {})
+    headers = request_headers(:post, @base_url + path, params, {})
     headers.merge!(upload_headers)
     request(:post, path, params, headers)
   end
 
   def require_server_success_response(response)
+    # NOTE: Because of sandbox restrictions, the code is overly complex
+    # E.g., the sandbox does not even allow you to do "#{err}" or
+    #   "#{err.inspect}" when err is a hash...
     unless response.code == "200"
       begin
         result = JSON::parse(response.body)
@@ -1687,9 +1712,14 @@ class OAuthConnection
       end
       # Fallback to whole body if no error found
       err ||= response.body
+      if err.kind_of?(Hash)
+        err = (err.map { |k, v| "#{k}: #{v}" }).join(", ")
+      else
+        err = "#{err}"
+      end
       err = err.strip
       err = "Communication error #{response.code}" if err.empty? # Last resort if no body
-      dbglog "require_server_success_response: #{err}"
+      dbglog "Server error: #{err}"
       raise err
     end
   end 
@@ -1751,9 +1781,9 @@ class OAuthConnection
     uri = URI.parse(url)
     ensure_open_http(uri.host, uri.port)
     if method == :get
-      @http.send(method.to_sym, uri.request_uri, headers)
+      log_server_response(method, @http.send(method.to_sym, uri.request_uri, headers))
     else
-      @http.send(method.to_sym, uri.request_uri, params, headers)
+      log_server_response(method, @http.send(method.to_sym, uri.request_uri, params, headers))
     end
   end
 end
@@ -1820,6 +1850,12 @@ class OAuthClient
   end
 end
 
+class OAuth2Client < OAuthClient
+  def fetch_request_token
+    # Empty step for OAuth2!
+  end
+end
+
 class OAuthUploadProtocol
   def connection
     raise "connection needs to be defined in class #{self.class}"
@@ -1833,15 +1869,6 @@ class OAuthUploadProtocol
     @connection_settings_serializer = options[:connection_settings_serializer]
     mute_transfer_status
     close
-  end
-
-  def create_query_string_from_hash( query_hash = {} )
-    qstr = ""
-    query_hash.each_pair do |key, value|
-      qstr += (qstr.empty? ? "?" : "&")
-      qstr += "#{key}=" + URI.escape(value.to_s)
-    end
-    qstr
   end
 
   def upload(fname, remote_filename, spec)

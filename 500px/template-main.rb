@@ -303,10 +303,10 @@ class U500pxUploadProtocol < OAuthUploadProtocol
     begin
       @mute_transfer_status = false
       # Get upload_key & photo_id
-      response = connection.post('photos' + create_query_string_from_hash(spec.metadata[spec.unique_id]))
+      response = connection.post('photos' + connection.create_query_string_from_hash(spec.metadata[spec.unique_id]))
       connection.require_server_success_response(response)
       response_body = JSON.parse(response.body)
-      upload_qstr = create_query_string_from_hash(
+      upload_qstr = connection.create_query_string_from_hash(
         { "upload_key" => response_body["upload_key"],
           "photo_id" => response_body["photo"]["id"],
           "consumer_key" => connection.api_key,
