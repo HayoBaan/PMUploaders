@@ -326,7 +326,7 @@ class FacebookFileUploader < OAuthFileUploader
     # See what permissions we have
     @account_permissions = connection.get_permissions
 
-    set_status_text("Warning: this account is not authorised to publish. Please authorize it using the Connections button.") unless @account_permissions['publish_actions']
+    @dlg.set_status_text("Warning: this account is not authorised to publish. Please authorize it using the Connections button.") unless @account_permissions['publish_actions']
 
     # Fill albums
     if @account_permissions['user_photos']
