@@ -142,7 +142,7 @@ class DropboxConnection < OAuthConnection
     @base_url = 'https://api.dropbox.com/1/'
     @api_key = 'd0e5dgyire43exm'
     @api_secret = 'oixbhu0cncz8j29'
-    @callback_url = 'http://localhost/codeverifier.php'
+    @callback_url = 'https://auth.camerabits.com/oauth/verifier/Dropbox'
     super
   end
 
@@ -223,7 +223,7 @@ class DropboxUploadProtocol < OAuthUploadProtocol
     headers = { "Content-Length" => fcontents.length.to_s }
 
     begin
-      @mute_transfer_status = false
+      connection.unmute_transfer_status
       query = connection.create_query_string_from_hash({ "overwrite" => spec.dropbox_overwrite, "autorename" => spec.dropbox_autorename })
       destination_path = spec.dropbox_folders[spec.unique_id]+remote_filename
       response = connection.put('files_put/auto'+URI.escape(destination_path)+query, fcontents, headers)
@@ -232,7 +232,7 @@ class DropboxUploadProtocol < OAuthUploadProtocol
       actual_destination_path = result['path']
       dbglog "Uploaded file #{destination_path} renamed to #{actual_destination_path}" if actual_destination_path != destination_path
     ensure
-      @mute_transfer_status = true
+      connection.mute_transfer_status
     end
   end
 end

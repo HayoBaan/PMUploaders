@@ -301,7 +301,7 @@ class U500pxUploadProtocol < OAuthUploadProtocol
     data, headers = mime.generate_data_and_headers
 
     begin
-      @mute_transfer_status = false
+      connection.unmute_transfer_status
       # Get upload_key & photo_id
       response = connection.post('photos' + connection.create_query_string_from_hash(spec.metadata[spec.unique_id]))
       connection.require_server_success_response(response)
@@ -316,7 +316,7 @@ class U500pxUploadProtocol < OAuthUploadProtocol
       connection_image_upload.post('upload' + upload_qstr, data, headers)
       connection.require_server_success_response(response)
     ensure
-      @mute_transfer_status = true
+      connection.mute_transfer_status
     end
   end
 end

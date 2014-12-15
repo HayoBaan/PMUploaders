@@ -814,11 +814,8 @@ class OAuthConnectionSettingsUI
   include AutoAccessor
   include CreateControlHelper
 
-  attr_accessor :display_name
-
-  def initialize(pm_api_bridge, display_name="OAuth Uploader")
+  def initialize(pm_api_bridge)
     @bridge = pm_api_bridge
-    @display_name = display_name
   end
 
   def create_controls(dlg)
@@ -826,7 +823,7 @@ class OAuthConnectionSettingsUI
     create_control(:setting_name_combo,       ComboBox,     dlg, :editable=>false, :sorted=>true, :persist=>false)
     create_control(:setting_delete_button,    Button,       dlg, :label=>"Delete Account")
     create_control(:setting_add_button,       Button,       dlg, :label=>"Add/Replace Account")
-    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on ading an account: If you have an active #{@display_name} session in your browser, #{@display_name} will authorize Photo Mechanic for the account associated with that session. Otherwise, #{@display_name} will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code below and press the Verify Code button. The account name will be determined automatically from your #{@display_name} user name.")
+    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on ading an account: If you have an active #{TEMPLATE_DISPLAY_NAME} session in your browser, #{TEMPLATE_DISPLAY_NAME} will authorize Photo Mechanic for the account associated with that session. Otherwise, #{TEMPLATE_DISPLAY_NAME} will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code below and press the Verify Code button. The account name will be determined automatically from your #{TEMPLATE_DISPLAY_NAME} user name.")
     create_control(:code_group_box,           GroupBox,    dlg, :label=>"Verification code:")
     create_control(:code_edit,                EditControl, dlg, :value=>"Enter verification code", :persist=>false, :enabled=>false)
     create_control(:code_verify_button,       Button,      dlg, :label=>"Verify Code", :enabled=>false)
@@ -887,8 +884,8 @@ class OAuthConnectionSettings
     TEMPLATE_DISPLAY_NAME
   end
   
-  def self.template_description  # shown in dialog box
-    "#{self.template_display_name} Connection Settings"
+  def self.template_description
+    "#{TEMPLATE_DISPLAY_NAME} Connection Settings"
   end
 
   def self.fetch_settings_data(serializer)
@@ -951,7 +948,7 @@ class OAuthConnectionSettings
   end
 
   def create_controls(dlg)
-    @ui = OAuthConnectionSettingsUI.new(@bridge, self.class.template_display_name)
+    @ui = OAuthConnectionSettingsUI.new(@bridge)
     @ui.create_controls(dlg)
     @ui.add_event_handlers(self)
   end
@@ -1114,6 +1111,19 @@ class OAuthFileUploaderUI
     false # default is to assume metadata is not safe!
   end
 
+  def metadata_warning_text
+    "Warning: #{TEMPLATE_DISPLAY_NAME} removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media."
+  end
+
+  def ip_warning?
+    false # default is to assume that you do not implicitly give away ip rights
+  end
+
+  def ip_warning_text
+    # Text to provide as warning when ip_warning is true
+    "WARNING: You grant #{TEMPLATE_DISPLAY_NAME} a non-exclusive, transferable, sub-licensable, royalty-free, worldwide license to use any IP content that you post on or in connection with #{TEMPLATE_DISPLAY_NAME}."
+  end
+
   def enable_rename?
     false # default is to not enable upload file renaming
   end
@@ -1139,10 +1149,11 @@ class OAuthFileUploaderUI
     create_control(:send_original_radio,       RadioButton, dlg, :label=>"Original Photos", :checked=>send_original_default?)
     create_control(:send_jpeg_radio,           RadioButton, dlg, :label=>"Saved as JPEG", :checked=>!send_original_default?)
     RadioButton.set_exclusion_group(@send_original_radio, @send_jpeg_radio)
-    create_control(:send_desc_edit,            EditControl, dlg, :value=>"Note: #{TEMPLATE_DISPLAY_NAME}'s supported image format#{valid_file_types.length > 1 ? 's are:' : ' is only:'} #{valid_file_types.join(', ').sub(/, (?!.*,)/, valid_file_types.length > 2 ? ', ' : ' and ')}. All other image formats are automatically converted to JPEG.", :multiline=>true, :readonly=>true, :persist=>false)
+    create_control(:send_desc_edit,            EditControl, dlg, :value=>"Note: #{TEMPLATE_DISPLAY_NAME}'s supported image format#{valid_file_types.length > 1 ? 's are:' : ' is only:'} #{valid_file_types.join(', ').sub(/, (?!.*,)/, valid_file_types.length > 2 ? ', and ' : ' and ')}. All other image formats are automatically converted to JPEG.", :multiline=>true, :readonly=>true, :persist=>false)
     create_jpeg_controls(dlg)
     create_image_processing_controls(dlg)
-    create_control(:metadata_warning_edit,     EditControl, dlg, :value=>"Warning: #{TEMPLATE_DISPLAY_NAME} removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media.", :multiline=>true, :readonly=>true, :persist=>false)
+    create_control(:ip_warning_edit,           EditControl, dlg, :value=>ip_warning_text, :multiline=>true, :readonly=>true, :persist=>false)
+    create_control(:metadata_warning_edit,     EditControl, dlg, :value=>metadata_warning_text, :multiline=>true, :readonly=>true, :persist=>false)
     create_operations_controls(dlg)
   end
 
@@ -1193,13 +1204,18 @@ class OAuthFileUploaderUI
     container.layout_with_contents(@operations_group_box, "50%+5", container.base, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
 
-      if (metadata_safe?)
+      if ip_warning?
+        c << @ip_warning_edit.layout(0, c.base, -1, 2*eh)
+        c.pad_down(5).mark_base
+      end
+
+      if metadata_safe?
         c << @apply_iptc_check.layout(0, c.base, "50%-5", eh)
         c << @stationery_pad_btn.layout("-50%+5", c.base, -1, eh)
         c.pad_down(5).mark_base
         c << @preserve_exif_check.layout(0, c.base, -1, eh)
       else
-        c << @metadata_warning_edit.layout(0, c.base, "100%", 2*eh)
+        c << @metadata_warning_edit.layout(0, c.base, -1, 2*eh)
       end
       c.pad_down(5).mark_base
 
@@ -1255,16 +1271,6 @@ class OAuthBackgroundDataFetchWorker
   def do_task
     return unless @dlg.account_parameters_dirty
 
-    acct = @dlg.current_account_settings
-    if acct.nil?
-      @dlg.set_status_text("Please select an account, or create one with the Connections button.")
-    elsif ! acct.appears_valid?
-      @dlg.set_status_text("Some account settings appear invalid or missing. Please click the Connections button.")
-    elsif @dlg.num_files == 0
-        @dlg.set_status_text("No images selected!")
-    else
-      @dlg.set_status_text("You are ready to upload your " + (@dlg.num_files > 1 ? "#{@dlg.num_files} images." : "image."))
-    end
     @dlg.account_parameters_dirty = false
   end
 end
@@ -1286,9 +1292,9 @@ class OAuthFileUploader
   def self.template_display_name
     TEMPLATE_DISPLAY_NAME
   end
-
+  
   def self.template_description
-    "Upload images to #{self.template_display_name}"
+    "Upload images to #{TEMPLATE_DISPLAY_NAME}"
   end
 
   def self.file_uploader_ui_class
@@ -1435,10 +1441,6 @@ class OAuthFileUploader
     @account = current_account_settings
   end
 
-  def account_valid?
-    ! (account_empty? || account_invalid?)
-  end
-
   def preflight_settings(global_spec)
     raise "preflight_settings called with no @ui instantiated" unless @ui
 
@@ -1512,9 +1514,9 @@ class OAuthFileUploader
     spec = AutoStruct.new
 
     # String displayed in upload progress dialog title bar:
-    spec.upload_display_name  = "#{self.class.template_display_name}:#{ui.dest_account_combo.get_selected_item}"
+    spec.upload_display_name  = "#{TEMPLATE_DISPLAY_NAME}:#{ui.dest_account_combo.get_selected_item}"
     # String used in logfile name, should have NO spaces or funky characters:
-    spec.log_upload_type      = self.class.template_display_name.tr('^A-Za-z0-9_-','')
+    spec.log_upload_type      = TEMPLATE_DISPLAY_NAME.tr('^A-Za-z0-9_-','')
     # Account string displayed in upload log entries:
     spec.log_upload_acct      = spec.upload_display_name
 
@@ -1529,7 +1531,7 @@ class OAuthFileUploader
     #       Rule of thumb: If file A requires a different
     #       login than file B, they should have different
     #       queue keys.
-    spec.upload_queue_key = self.class.template_display_name
+    spec.upload_queue_key = TEMPLATE_DISPLAY_NAME
 
     processing_orgs_type = "originals"
     if !ui.valid_file_types.empty?
@@ -1577,35 +1579,20 @@ class OAuthFileUploader
     account && account.appears_valid?
   end
 
-  def account_empty?
-    if account.nil?
-      notify_account_missing
-      return true
-    else
-      return false
-    end
-  end
-
-  def account_invalid?
-    if account && account.appears_valid?
-      return false
-    else
-      notify_account_invalid
-      return true
-    end
-  end
-
-  def notify_account_missing
-    set_status_text("Please select an account, or create one with the Connections button.")
-  end
-
-  def notify_account_invalid
-    set_status_text("You need to authorize your account.")
-  end
-
   def account_parameters_changed
     @account = nil
     @account_parameters_dirty = true
+
+    account = current_account_settings
+    if account.nil?
+      set_status_text("Please select an account, or create one with the Connections button.")
+    elsif ! account.appears_valid?
+      set_status_text("Some account settings appear invalid or missing. Please click the Connections button.")
+    elsif @num_files == 0
+        set_status_text("No images selected!")
+    else
+      set_status_text("You are ready to upload your " + (@num_files > 1 ? "#{@num_files} images." : "image."))
+    end
   end
 end
 
@@ -1618,7 +1605,7 @@ class OAuthConnection
     qstr = ""
     query_hash.each_pair do |key, value|
       qstr += (qstr.empty? ? "?" : "&")
-      qstr += "#{key}=" + URI.escape(value.to_s)
+      qstr += URI.escape(key.to_s) + "=" + URI.escape(value.to_s)
     end
     qstr
   end
@@ -1630,6 +1617,14 @@ class OAuthConnection
     response
   end
 
+  def log_server_request(method, path, params, headers)
+    if PM::Logging.query_logging_active_for?("HTTP_REQUEST_LOGGING")
+      params_s = (params.map { |k, v| "#{k}: #{v}" }).join(", ")
+      headers_s = (headers.map { |k, v| "#{k}: #{v}" }).join(", ")
+      dbglog "http/request: #{method.to_s.upcase} #{path}, \{#{params_s}\} \{#{headers_s}\}"
+    end
+  end
+
   def initialize(pm_api_bridge)
     raise "@base_url needs to be defined in #{self.class}.initialize" if @base_url.nil?
     raise "@api_key needs to be defined in #{self.class}.initialize" if @api_key.nil?
@@ -1637,6 +1632,7 @@ class OAuthConnection
     @callback_url ||= 'oob'
     @bridge = pm_api_bridge
     @verifier = nil
+    @http = nil
   end
 
   def reset!
@@ -1648,7 +1644,7 @@ class OAuthConnection
     !(@access_token.nil? || @access_token.empty? || @access_token_secret.nil? || @access_token_secret.empty?)
   end
 
-  # todo: handle timeout
+  # TODO: handle timeout
   def ensure_open_http(host, port)
     unless @http
       @http = @bridge.open_http_connection(host, port)
@@ -1657,6 +1653,38 @@ class OAuthConnection
       @http.read_timeout = 180
     end
     @http
+  end
+
+  def close_http
+    if @http
+      @http.finish rescue nil
+      @http = nil
+    end
+  end
+
+  def mute_transfer_status
+    @mute_transfer_status = true
+  end
+
+  def unmute_transfer_status
+    @mute_transfer_status = false
+  end
+
+  def reset_transfer_status
+    (h = @http) and h.reset_transfer_status
+  end
+
+  # return [bytes_to_write, bytes_written]
+  def poll_transfer_status
+    if (h = @http)  &&  ! @mute_transfer_status
+      [h.bytes_to_write, h.bytes_written]
+    else
+      [0, 0]
+    end
+  end
+
+  def abort_transfer
+    (h = @http) and h.abort_transfer
   end
 
   def get(path, params = {})
@@ -1674,6 +1702,14 @@ class OAuthConnection
     headers = request_headers(:post, @base_url + path, params, {})
     headers.merge!(upload_headers)
     request(:post, path, params, headers)
+  end
+
+  def process_server_response_hash(err)
+    errors = []
+    [ 'message', 'error_user_msg' ].map { |m| errors.push(err[m]) if err[m] }
+    errors = errors.join(", ").strip
+    errors = nil if errors.empty?
+    errors
   end
 
   def require_server_success_response(response)
@@ -1698,13 +1734,14 @@ class OAuthConnection
           else
             err = (err.map { |e|
                      if e.kind_of?(Hash)
-                       raise "Unknown errors type" unless e['message']
-                       "#{e['message']}"
+                       process_server_response_hash(e)
                      else
                        "#{e}"
                      end
                    }).join(", ")
           end
+        elsif err.kind_of?(Hash)
+          err = process_server_response_hash(err)
         end
       rescue
         # In case of conversion errors above
@@ -1712,11 +1749,6 @@ class OAuthConnection
       end
       # Fallback to whole body if no error found
       err ||= response.body
-      if err.kind_of?(Hash)
-        err = (err.map { |k, v| "#{k}: #{v}" }).join(", ")
-      else
-        err = "#{err}"
-      end
       err = err.strip
       err = "Communication error #{response.code}" if err.empty? # Last resort if no body
       dbglog "Server error: #{err}"
@@ -1769,17 +1801,11 @@ class OAuthConnection
     }
   end
 
-  def close_http
-    if @http
-      @http.finish rescue nil
-      @http = nil
-    end
-  end
-
   def request(method, path, params = {}, headers = {})
     url = @base_url + path
     uri = URI.parse(url)
     ensure_open_http(uri.host, uri.port)
+    log_server_request(method, path, params, headers)
     if method == :get
       log_server_response(method, @http.send(method.to_sym, uri.request_uri, headers))
     else
@@ -1864,26 +1890,22 @@ class OAuthUploadProtocol
   def initialize(pm_api_bridge, options = {:connection_settings_serializer => nil, :dialog => nil})
     @bridge = pm_api_bridge
     @shared = @bridge.shared_data
-    @http = nil
     @dialog = options[:dialog]
     @connection_settings_serializer = options[:connection_settings_serializer]
-    mute_transfer_status
-    close
+    connection.mute_transfer_status
   end
 
-  def upload(fname, remote_filename, spec)
-    raise "upload needs to be defined in class #{self.class}"
+  def reset_transfer_status
+    connection.reset_transfer_status
   end
 
-  def mute_transfer_status
-    # we may make multiple requests while uploading a file, and
-    # don't want the progress bar to jump around until we get
-    # to the actual upload
-    @mute_transfer_status = true
+  # return [bytes_to_write, bytes_written]
+  def poll_transfer_status
+    connection.poll_transfer_status
   end
 
-  def close
-    # close_http
+  def abort_transfer
+    connection.abort_transfer
   end
 
   def reset!
@@ -1909,28 +1931,14 @@ class OAuthUploadProtocol
   def transfer_queue_empty(spec)
     @shared.mutex.synchronize {
       dat = (@shared[spec.upload_queue_key] ||= {})
-
       if dat[:pending_uploadjob].to_i > 0
         dat[:pending_uploadjob] = 0
       end
     }
   end
 
-  def reset_transfer_status
-    (h = @http) and h.reset_transfer_status
-  end
-
-  # return [bytes_to_write, bytes_written]
-  def poll_transfer_status
-    if (h = @http)  &&  ! @mute_transfer_status
-      [h.bytes_to_write, h.bytes_written]
-    else
-      [0, 0]
-    end
-  end
-
-  def abort_transfer
-    (h = @http) and h.abort_transfer
+  def upload(fname, remote_filename, spec)
+    raise "upload needs to be defined in class #{self.class}"
   end
 
   def authenticate_from_settings(settings = {})
