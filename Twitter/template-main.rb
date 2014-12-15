@@ -25,14 +25,18 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
     [ "GIF", "JPEG", "PNG" ]
   end
 
+  def initial_control
+    @tweet_edit
+  end
+
   def create_controls(dlg)
     super
 
     create_control(:tweet_group_box,         GroupBox,    dlg, :label=> "Tweet:")
-    create_control(:tweet_edit,              EditControl, dlg, :value=> "– tweeted via @PhotoMechanic", :multiline=>true, :persist=> true)
+    create_control(:tweet_edit,              EditControl, dlg, :value=> "{caption} – tweeted via @PhotoMechanic", :multiline=>true, :persist=> true)
     create_control(:tweet_length_static,     Static,      dlg, :label=> "140", :align => 'right')
-    create_control(:tweet_sensitive_check,   CheckBox,    dlg, :label=> "Sensitive content?")
-    create_control(:tweet_coordinates_check, CheckBox,    dlg, :label=> "Display exact coordinates?")
+    create_control(:tweet_sensitive_check,   CheckBox,    dlg, :label=> "Sensitive content")
+    create_control(:tweet_coordinates_check, CheckBox,    dlg, :label=> "Display exact coordinates")
     create_control(:tweet_latitude_static,   Static,      dlg, :label=> "Latitude:")
     create_control(:tweet_latitude_edit,     EditControl, dlg, :value=> "{latitude}", :multiline=>false)
     create_control(:tweet_longitude_static,  Static,      dlg, :label=> "Longitude:")

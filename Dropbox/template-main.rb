@@ -37,15 +37,19 @@ class DropboxFileUploaderUI < OAuthFileUploaderUI
     [] # all file types are valid
   end
 
+  def initial_control
+    @dropbox_foldername_edit
+  end
+
   def create_controls(dlg)
     super
 
     create_control(:dropbox_group_box,         GroupBox,    dlg, :label=> "Dropbox:")
-    create_control(:dropbox_folder_static,     Static,      dlg, :label=> "Dropbox folder name")
+    create_control(:dropbox_folder_static,     Static,      dlg, :label=> "Dropbox folder name:")
     create_control(:dropbox_foldername_static, Static,      dlg, :label=> "/", :align=>'right')
     create_control(:dropbox_foldername_edit,   EditControl, dlg, :value=> "", :multiline=>false, :persist=>true)
-    create_control(:dropbox_overwrite_check,   CheckBox,    dlg, :label=> "Overwrite existing files?", :checked=>true)
-    create_control(:dropbox_autorename_check,  CheckBox,    dlg, :label=> "Auto resolve filename conflicts?")
+    create_control(:dropbox_overwrite_check,   CheckBox,    dlg, :label=> "Overwrite existing files", :checked=>true)
+    create_control(:dropbox_autorename_check,  CheckBox,    dlg, :label=> "Auto resolve filename conflicts")
 
     create_processing_controls(dlg)
   end
@@ -53,7 +57,7 @@ class DropboxFileUploaderUI < OAuthFileUploaderUI
   def layout_controls(container)
     super
     
-    sh, eh, w = 20, 24, 160
+    sh, eh, w = 20, 24, 180
 
     container.layout_with_contents(@dropbox_group_box, 0, container.base, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base

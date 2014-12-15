@@ -1138,9 +1138,14 @@ class OAuthFileUploaderUI
     [ "JPEG" ] # Default is that only jpeg files are supported
   end
 
+  def initial_control
+    # Set to the control that should get initial focus
+    nil
+  end
+
   def create_controls(dlg)
     create_control(:dest_account_group_box,    GroupBox,    dlg, :label=>"Destination #{TEMPLATE_DISPLAY_NAME} Account:")
-    create_control(:dest_account_static,       Static,      dlg, :label=>"Account")
+    create_control(:dest_account_static,       Static,      dlg, :label=>"Account:")
     create_control(:dest_account_combo,        ComboBox,    dlg, :sorted=>true, :persist=>false)
   end
 
@@ -1166,7 +1171,7 @@ class OAuthFileUploaderUI
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
 
       c << @dest_account_static.layout(0, c.base+3, 80, sh)
-      c << @dest_account_combo.layout(c.prev_right, c.base, 200, eh)
+      c << @dest_account_combo.layout(c.prev_right, c.base, 193, eh)
 
       c.pad_down(5).mark_base
       c.mark_base.size_to_base
@@ -1401,6 +1406,8 @@ class OAuthFileUploader
   def periodic_timer_callback
     return unless @ui
     @data_fetch_worker.exec_messages
+    @ui.initial_control.set_focus if !@initialized && @ui.initial_control
+    @initialized = true
     handle_jpeg_size_estimation
   end
 

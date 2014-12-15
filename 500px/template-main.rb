@@ -29,10 +29,14 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
     [ "JPEG" ]
   end
 
+  def initial_control
+    @meta_name_edit
+  end
+
   def create_controls(dlg)
     super
     create_control(:meta_left_group_box,       GroupBox,    dlg, :label=>"500px Metadata:")
-    create_control(:meta_category_static,      Static,      dlg, :label=>"Category")
+    create_control(:meta_category_static,      Static,      dlg, :label=>"Category:")
     create_control(:meta_category_combo,       ComboBox,    dlg, :items=>[
                      "00 - Uncategorized",
                      "10 - Abstract",
@@ -64,7 +68,7 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
                      "25 - Wedding"
                    ], :selected=>"00 - Uncategorized", :sorted=>false, :persist=>true)
     create_control(:meta_nsfw_check,           CheckBox,    dlg, :label=>"NotSafeForWork")
-    create_control(:meta_license_type_static,  Static,      dlg, :label=>"License")
+    create_control(:meta_license_type_static,  Static,      dlg, :label=>"License:")
     create_control(:meta_license_type_combo,   ComboBox,    dlg, :items=>[
                      "00 - 500px License",
                      "04 - Attribution 3.0",
@@ -83,32 +87,32 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
                      # "03 - Creative Commons License Non Commercial Share Alike"
                    ], :selected=>"00 - Standard 500px License", :sorted=>false, :persist=>true)
     create_control(:meta_privacy_check,        CheckBox,    dlg, :label=>"Privacy")
-    create_control(:meta_name_static,          Static,      dlg, :label=>"Name")
+    create_control(:meta_name_static,          Static,      dlg, :label=>"Name:")
     create_control(:meta_name_edit,            EditControl, dlg, :value=>"{headline}", :multiline=>true)
-    create_control(:meta_description_static,   Static,      dlg, :label=>"Description")
+    create_control(:meta_description_static,   Static,      dlg, :label=>"Description:")
     create_control(:meta_description_edit,     EditControl, dlg, :value=>"{caption}", :multiline=>true)
-    create_control(:meta_tags_static,          Static,      dlg, :label=>"Tags")
+    create_control(:meta_tags_static,          Static,      dlg, :label=>"Tags:")
     create_control(:meta_tags_edit,            EditControl, dlg, :value=>"{keywords}", :multiline=>true)
 
     create_control(:meta_right_group_box,      GroupBox,    dlg, :label=>"500px Metadata:")
-    create_control(:meta_camera_static,        Static,      dlg, :label=>"Camera")
+    create_control(:meta_camera_static,        Static,      dlg, :label=>"Camera:")
     create_control(:meta_camera_edit,          EditControl, dlg, :value=>"{model}", :multiline=>false)
-    create_control(:meta_lens_static,          Static,      dlg, :label=>"Lens")
+    create_control(:meta_lens_static,          Static,      dlg, :label=>"Lens:")
     create_control(:meta_lens_edit,            EditControl, dlg, :value=>"{lenstype}", :multiline=>false)
-    create_control(:meta_focal_length_static,  Static,      dlg, :label=>"Focal length")
+    create_control(:meta_focal_length_static,  Static,      dlg, :label=>"Focal length:")
     create_control(:meta_focal_length_edit,    EditControl, dlg, :value=>"{lens}", :multiline=>false)
-    create_control(:meta_aperture_static,      Static,      dlg, :label=>"Aperture")
+    create_control(:meta_aperture_static,      Static,      dlg, :label=>"Aperture:")
     create_control(:meta_aperture_edit,        EditControl, dlg, :value=>"{aperture}", :multiline=>false)
-    create_control(:meta_shutter_speed_static, Static,      dlg, :label=>"Shutter")
+    create_control(:meta_shutter_speed_static, Static,      dlg, :label=>"Shutter:")
     create_control(:meta_shutter_speed_edit,   EditControl, dlg, :value=>"{shutter}", :multiline=>false)
-    create_control(:meta_iso_static,           Static,      dlg, :label=>"ISO")
+    create_control(:meta_iso_static,           Static,      dlg, :label=>"ISO:")
     create_control(:meta_iso_edit,             EditControl, dlg, :value=>"{iso}", :multiline=>false)
     # Currently, the 500px api doesn't allow setting "taken at" :-(
     # create_control(:meta_taken_at_static,      Static,      dlg, :label=>"Taken at")
     # create_control(:meta_taken_at_edit,        EditControl, dlg, :value=>"{day0}/{month0}/{year4} {time}", :multiline=>false)
-    create_control(:meta_latitude_static,      Static,      dlg, :label=>"Latitude")
+    create_control(:meta_latitude_static,      Static,      dlg, :label=>"Latitude:")
     create_control(:meta_latitude_edit,        EditControl, dlg, :value=>"{latitude}", :multiline=>false)
-    create_control(:meta_longitude_static,     Static,      dlg, :label=>"Longitude")
+    create_control(:meta_longitude_static,     Static,      dlg, :label=>"Longitude:")
     create_control(:meta_longitude_edit,       EditControl, dlg, :value=>"{longitude}", :multiline=>false)
 
     create_processing_controls(dlg)
@@ -123,29 +127,28 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
 
       c << @meta_category_static.layout(0, c.base+3, 80, sh)
-      c << @meta_category_combo.layout(c.prev_right, c.base, 185, eh)
+      c << @meta_category_combo.layout(c.prev_right, c.base, 193, eh)
       c << @meta_nsfw_check.layout(c.prev_right+10, c.base, -1, sh)
       c.pad_down(5).mark_base
 
       c << @meta_license_type_static.layout(0, c.base+3, 80, sh)
-      c << @meta_license_type_combo.layout(c.prev_right, c.base, 185, eh)
+      c << @meta_license_type_combo.layout(c.prev_right, c.base, 193, eh)
       c << @meta_privacy_check.layout(c.prev_right+10, c.base, -1, sh)
       c.pad_down(5).mark_base
 
-      # Not sure why this one is neceassary to line up left and right...
-      c.pad_down(1).mark_base
+      c.pad_down(1).mark_base # Not sure why this one is neceassary to line up left and right...
 
       c << @meta_name_static.layout(0, c.base, 80, sh)
-      c << @meta_name_edit.layout(c.prev_right, c.base, -1, eh*2)
-      c.pad_down(9).mark_base
+      c << @meta_name_edit.layout(c.prev_right, c.base, -1, eh*2+4) # Again, 4 instead of 5 to make it line-up perfectly...
+      c.pad_down(5).mark_base
 
       c << @meta_description_static.layout(0, c.base, 80, sh)
-      c << @meta_description_edit.layout(c.prev_right, c.base, -1, eh*2)
-      c.pad_down(9).mark_base
+      c << @meta_description_edit.layout(c.prev_right, c.base, -1, eh*4+12) # And again, 11 instead of 10 to make it line-up perfectly...
+      c.pad_down(5).mark_base
 
       c << @meta_tags_static.layout(0, c.base, 80, sh)
-      c << @meta_tags_edit.layout(c.prev_right, c.base, -1, eh*2)
-      c.pad_down(9).mark_base
+      c << @meta_tags_edit.layout(c.prev_right, c.base, -1, eh*2+5)
+      c.pad_down(5).mark_base
 
       c.mark_base.size_to_base
     end
@@ -183,6 +186,7 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
       c << @meta_longitude_static.layout(0, c.base, 80, sh)
       c << @meta_longitude_edit.layout(c.prev_right, c.base, -1, eh)
       c.pad_down(5).mark_base
+      c.pad_down(eh*2+9).mark_base # And again, 4 extra to get it to line-up
       c.mark_base.size_to_base
     end
 

@@ -98,7 +98,7 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
     c << @album_message_static.layout(0, c.base, -1, sh)
     c.pad_down(0).mark_base
     c << @album_message_edit.layout(0, c.base, -1, eh*3)
-    layout_facebook_privacy_controls(c, 0, -eh, 80, 200)
+    layout_facebook_privacy_controls(c, 0, -eh, 80, 193)
     bw = 80
     c << @create_button.layout(-(2*bw+3), -eh, bw, eh)
     c << @cancel_button.layout(-bw, -eh, bw, eh)
@@ -142,16 +142,20 @@ class FacebookFileUploaderUI < OAuthFileUploaderUI
     true # Warn users about giving away ip rights
   end
 
+  def initial_control
+    @facebook_message_edit
+  end
+
   def create_controls(dlg)
     super
 
     create_control(:facebook_group_box,         GroupBox,    dlg, :label => "Facebook:")
-    create_control(:facebook_albums_check,      CheckBox,    dlg, :label => "Use Album?:", :checked=>true)
+    create_control(:facebook_albums_check,      CheckBox,    dlg, :label => "Album:", :checked=>true)
     create_control(:facebook_albums_combo,      ComboBox,    dlg, :items =>[], :sorted=>true, :persist=>true)
     create_control(:facebook_albums_new_button, Button,      dlg, :label=> "Create new album...")
     create_control(:facebook_message_static,    Static,      dlg, :label => "Message:")
     create_control(:facebook_message_edit,      EditControl, dlg, :value => "{caption} – uploaded via Photo Mechanic", :multiline=>true, :persist=>true)
-    create_control(:facebook_story_check,       CheckBox,    dlg, :label => "Include in story feed?")
+    create_control(:facebook_story_check,       CheckBox,    dlg, :label => "Include in story feed")
     create_facebook_privacy_controls(dlg)
     
     create_processing_controls(dlg)
@@ -164,8 +168,8 @@ class FacebookFileUploaderUI < OAuthFileUploaderUI
 
     container.layout_with_contents(@facebook_group_box, 0, container.base, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
-      c << @facebook_albums_check.layout(0, c.base+1, 120, sh)
-      c << @facebook_albums_combo.layout(c.prev_right, c.base, 400, eh)
+      c << @facebook_albums_check.layout(0, c.base+1, 80, sh)
+      c << @facebook_albums_combo.layout(c.prev_right, c.base, "100%-215", eh)
       c << @facebook_albums_new_button.layout(-200, c.base, 200, eh)
       c.pad_down(5).mark_base     
       c << @facebook_message_static.layout(0, c.base, -1, sh)
@@ -174,7 +178,7 @@ class FacebookFileUploaderUI < OAuthFileUploaderUI
       c.pad_down(5).mark_base
       c << @facebook_story_check.layout(0, c.base+2, 200, sh)
       c.pad_down(5).mark_base
-      layout_facebook_privacy_controls(c, 0, c.base, 80, 200)
+      layout_facebook_privacy_controls(c, 0, c.base, 80, 193)
       c.pad_down(5).mark_base
       c.mark_base.size_to_base
     end
@@ -374,9 +378,7 @@ class FacebookConnection < OAuthConnection
       require_server_success_response(response)
       result = JSON::parse(response.body)
       result['data'].each { | a | albums[a['name'] + (albums[a['name']] ? " (#{a['id']})" : "")] = a }    
-    rescue StandardError => e
-      dbgprint "ERROR #{e}"
-      
+    rescue
       # Ignore any errors
     end
     albums
