@@ -35,10 +35,10 @@ module FacebookPrivacy
     create_control(:facebook_privacy_combo,     ComboBox,    dlg, :items => facebook_privacy_items, :sorted=>false, :persist=>persist)
   end
 
-  def layout_facebook_privacy_controls(c, x, w1, w2)
+  def layout_facebook_privacy_controls(c, x, y, w1, w2)
     sh, eh = 20, 24
-    c << @facebook_privacy_static.layout(x, c.base+3, w1, sh)
-    c << @facebook_privacy_combo.layout(c.prev_right, c.base, w2, eh)
+    c << @facebook_privacy_static.layout(x, y+3, w1, sh)
+    c << @facebook_privacy_combo.layout(c.prev_right, y, w2, eh)
   end
 end
 
@@ -47,9 +47,9 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
   include CreateControlHelper
   include FacebookPrivacy
 
-  def initialize(connection, client, callback)
+  def initialize(connection, callback, privacy)
     @connection = connection
-    @client = client
+    @privacy = privacy
     @callback = callback
     super()
   end
@@ -61,14 +61,13 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
   def init_dialog
     dlg = self
     dlg.set_window_position_key("#{TEMPLATE_DISPLAY_NAME}NewAlbumDialog")
-    dlg.set_window_position(50, 200, 300, 160)
+    dlg.set_window_position(100, 200, 500, 215)
     dlg.set_window_title("Create new #{TEMPLATE_DISPLAY_NAME} album")
 
     create_control(:album_name_static,    Static,      dlg, :label=>"Album name:")
     create_control(:album_name_edit,      EditControl, dlg, :value=>"", :persist=>false)
     create_control(:album_message_static, Static,      dlg, :label=>"Album description:")
     create_control(:album_message_edit,   EditControl, dlg, :value=>"", :multiline=>true, :persist=>false)
-    create_control(:album_name_edit,      EditControl, dlg, :value=>"", :persist=>false)
     create_facebook_privacy_controls(dlg, false)
     create_control(:create_button, Button,             dlg, :label=>"Create", :does=>"ok")
     create_control(:cancel_button, Button,             dlg, :label=>"Cancel", :does=>"cancel")
@@ -78,6 +77,8 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
 
     layout_controls
     instantiate_controls
+    @facebook_privacy_combo.set_selected_item(@privacy)
+    @album_name_edit.set_focus
     show(true)
   end
 
@@ -87,17 +88,16 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
     dlg = self
     client_width, client_height = dlg.get_clientrect_size
     c = LayoutContainer.new(0, 0, client_width, client_height)
-    c.inset(5, 5, -5, -5)
+    c.inset(10, 10, -10, -10)
 
-    c << @album_name_static.layout(0, c.base, 120, sh)
-    c << @album_name_edit.layout(c.prev_right, c.base, -1, eh)
+    c << @album_name_static.layout(0, c.base, -1, sh)
+    c.pad_down(0).mark_base
+    c << @album_name_edit.layout(0, c.base, -1, eh)
     c.pad_down(5).mark_base     
     c << @album_message_static.layout(0, c.base, -1, sh)
     c.pad_down(0).mark_base
     c << @album_message_edit.layout(0, c.base, -1, eh*3)
-    c.pad_down(5).mark_base
-    layout_facebook_privacy_controls(c, 0, 120, 200)
-    c.pad_down(10).mark_base
+    layout_facebook_privacy_controls(c, 0, -eh, 80, 200)
     bw = 80
     c << @create_button.layout(-(2*bw+3), -eh, bw, eh)
     c << @cancel_button.layout(-bw, -eh, bw, eh)
@@ -171,7 +171,7 @@ class FacebookFileUploaderUI < OAuthFileUploaderUI
       c.pad_down(5).mark_base
       c << @facebook_story_check.layout(0, c.base+2, 200, sh)
       c.pad_down(5).mark_base
-      layout_facebook_privacy_controls(c, 0, 80, 200)
+      layout_facebook_privacy_controls(c, 0, c.base, 80, 200)
       c.pad_down(5).mark_base
       c.mark_base.size_to_base
     end
@@ -277,7 +277,7 @@ class FacebookFileUploader < OAuthFileUploader
       account_parameters_changed
       @ui.facebook_albums_combo.set_selected_item(name) if @ui.facebook_albums_check.checked?
     end
-    cdlg = FacebookNewAlbumDialogUI.new(connection, self, callback)
+    cdlg = FacebookNewAlbumDialogUI.new(connection, callback, @ui.facebook_privacy_combo.get_selected_item)
     cdlg.instantiate!
     cdlg.request_deferred_modal
   end
