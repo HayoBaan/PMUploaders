@@ -47,10 +47,11 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
   include CreateControlHelper
   include FacebookPrivacy
 
-  def initialize(connection, callback, privacy)
+  def initialize(connection, callback, privacy, albums)
     @connection = connection
-    @privacy = privacy
     @callback = callback
+    @privacy = privacy
+    @albums = albums
     super()
   end
 
@@ -111,6 +112,8 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
     if name.empty?
       Dlg::MessageBox.ok("Please enter a non-blank album name.", Dlg::MessageBox::MB_ICONEXCLAMATION)
       return
+    elsif @albums[name]
+      return if !Dlg::MessageBox.ok_cancel?("An album with this name already exists, are you sure you want to create it?", Dlg::MessageBox::MB_ICONEXCLAMATION)
     end
 
     begin
@@ -277,7 +280,7 @@ class FacebookFileUploader < OAuthFileUploader
       account_parameters_changed
       @ui.facebook_albums_combo.set_selected_item(name) if @ui.facebook_albums_check.checked?
     end
-    cdlg = FacebookNewAlbumDialogUI.new(connection, callback, @ui.facebook_privacy_combo.get_selected_item)
+    cdlg = FacebookNewAlbumDialogUI.new(connection, callback, @ui.facebook_privacy_combo.get_selected_item, @account_albums)
     cdlg.instantiate!
     cdlg.request_deferred_modal
   end
@@ -287,7 +290,7 @@ class FacebookFileUploader < OAuthFileUploader
 
     if @account_albums.empty?
       @ui.facebook_albums_check.enable(false)
-      @ui.facebook_albums_check.checked(false)
+      @ui.facebook_albums_check.set_check(false)
       @ui.facebook_albums_combo.enable(false)
       @ui.facebook_albums_combo.add_item(@account_permissions['publish_actions'] ?
                                            (@account_permissions['user_photos'] ?
@@ -370,8 +373,10 @@ class FacebookConnection < OAuthConnection
       response = get('me/albums');
       require_server_success_response(response)
       result = JSON::parse(response.body)
-      result['data'].each { | a | albums[a['name']] = a }    
-    rescue
+      result['data'].each { | a | albums[a['name'] + (albums[a['name']] ? " (#{a['id']})" : "")] = a }    
+    rescue StandardError => e
+      dbgprint "ERROR #{e}"
+      
       # Ignore any errors
     end
     albums
