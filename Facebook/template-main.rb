@@ -302,6 +302,7 @@ class FacebookFileUploader < OAuthFileUploader
                                               "Account not authorised for user photos") + ", using default album" :
                                            "Account not authorized to publish!")
     else
+      @ui.facebook_albums_check.enable(true)
       @ui.facebook_albums_combo.enable(@ui.facebook_albums_check.checked?)
       if @ui.facebook_albums_check.checked?
         @account_albums.each_key { | a | @ui.facebook_albums_combo.add_item(a) }
