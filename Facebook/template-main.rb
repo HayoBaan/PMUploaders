@@ -217,22 +217,28 @@ class FacebookFileUploader < OAuthFileUploader
     FacebookBackgroundDataFetchWorker
   end
 
-  def restore_state(serializer)
-    settings_data = serializer.instance_variable_get("@data")
-    @previous_album = settings_data[:facebook_albums_combo][:selected] if settings_data[:facebook_albums_combo]
+  def save_state(serializer)
+    return unless @ui
     super
+    serializer.store(DLG_SETTINGS_KEY, :previous_account_album_settings, @previous_account_album_settings)
+  end
+
+  def restore_state(serializer)
+    super
+    @previous_account_album_settings = serializer.fetch(DLG_SETTINGS_KEY, :previous_account_album_settings) || {}
+    adjust_album_controls
   end
 
   def initialize(pm_api_bridge, num_files, dlg_status_bridge, conn_settings_serializer)
     super
     @account_permissions = {}
     @account_albums = {}
-    @previous_album = nil
+    @previous_account_album_settings = {}
   end
 
   def create_controls(dlg)
     super
-    @ui.facebook_albums_check.on_click { adjust_album_controls }
+    @ui.facebook_albums_check.on_click { handle_album_check }
     @ui.facebook_albums_combo.on_sel_change { handle_album_change }
     @ui.facebook_albums_new_button.on_click { handle_new_album }
   end
@@ -270,8 +276,20 @@ class FacebookFileUploader < OAuthFileUploader
     messages
   end
 
+  def update_previous_account_album_settings(settings = {})
+    @previous_account_album_settings[@ui.dest_account_combo.get_selected_item] ||= {}
+    settings.each_pair { | k, v |
+      @previous_account_album_settings[@ui.dest_account_combo.get_selected_item][k] = v
+    }
+  end
+  
+  def handle_album_check
+    update_previous_account_album_settings({ 'checked' => @ui.facebook_albums_check.checked? })
+    adjust_album_controls
+  end
+
   def handle_album_change
-    @previous_album = @ui.facebook_albums_combo.get_selected_item
+    update_previous_account_album_settings({ 'name' => @ui.facebook_albums_combo.get_selected_item }) if @ui.facebook_albums_check.checked?
   end
 
   def handle_new_album
@@ -281,8 +299,8 @@ class FacebookFileUploader < OAuthFileUploader
     connection = FacebookConnection.new(@bridge)
     connection.set_tokens(account.access_token, account.access_token_secret)
     callback = lambda do |name|
+      update_previous_account_album_settings({ 'checked' => true, 'name' => name })
       account_parameters_changed
-      @ui.facebook_albums_combo.set_selected_item(name) if @ui.facebook_albums_check.checked?
     end
     cdlg = FacebookNewAlbumDialogUI.new(connection, callback, @ui.facebook_privacy_combo.get_selected_item, @account_albums)
     cdlg.instantiate!
@@ -302,16 +320,20 @@ class FacebookFileUploader < OAuthFileUploader
                                               "Account not authorised for user photos") + ", using default album" :
                                            "Account not authorized to publish!")
     else
+      prev_album_settings = @previous_account_album_settings[@ui.dest_account_combo.get_selected_item] || {}
       @ui.facebook_albums_check.enable(true)
+      @ui.facebook_albums_check.set_check(prev_album_settings['checked'])
       @ui.facebook_albums_combo.enable(@ui.facebook_albums_check.checked?)
       if @ui.facebook_albums_check.checked?
         @account_albums.each_key { | a | @ui.facebook_albums_combo.add_item(a) }
+        prev_album_name = prev_album_settings['name']
+        @ui.facebook_albums_combo.set_selected_item(prev_album_name) if prev_album_name && @account_albums[prev_album_name]
+        handle_album_change
       else
         @ui.facebook_albums_combo.add_item("Using default album")
       end
     end
     @ui.facebook_albums_new_button.enable(@account_permissions['publish_actions'] && @account_permissions['user_photos'])
-    @ui.facebook_albums_combo.set_selected_item(@previous_album) if @previous_album && @account_albums[@previous_album]
   end
 
   def account_parameters_changed
