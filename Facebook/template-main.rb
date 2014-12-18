@@ -284,12 +284,12 @@ class FacebookFileUploader < OAuthFileUploader
   end
   
   def handle_album_check
-    update_previous_account_album_settings({ 'checked' => @ui.facebook_albums_check.checked? })
+    update_previous_account_album_settings({ :checked => @ui.facebook_albums_check.checked? })
     adjust_album_controls
   end
 
   def handle_album_change
-    update_previous_account_album_settings({ 'name' => @ui.facebook_albums_combo.get_selected_item }) if @ui.facebook_albums_check.checked?
+    update_previous_account_album_settings({ :name => @ui.facebook_albums_combo.get_selected_item }) if @ui.facebook_albums_check.checked?
   end
 
   def handle_new_album
@@ -299,7 +299,7 @@ class FacebookFileUploader < OAuthFileUploader
     connection = FacebookConnection.new(@bridge)
     connection.set_tokens(account.access_token, account.access_token_secret)
     callback = lambda do |name|
-      update_previous_account_album_settings({ 'checked' => true, 'name' => name })
+      update_previous_account_album_settings({ :checked => true, :name => name })
       account_parameters_changed
     end
     cdlg = FacebookNewAlbumDialogUI.new(connection, callback, @ui.facebook_privacy_combo.get_selected_item, @account_albums)
@@ -322,11 +322,11 @@ class FacebookFileUploader < OAuthFileUploader
     else
       prev_album_settings = @previous_account_album_settings[@ui.dest_account_combo.get_selected_item] || {}
       @ui.facebook_albums_check.enable(true)
-      @ui.facebook_albums_check.set_check(prev_album_settings['checked'])
+      @ui.facebook_albums_check.set_check(prev_album_settings[:checked])
       @ui.facebook_albums_combo.enable(@ui.facebook_albums_check.checked?)
       if @ui.facebook_albums_check.checked?
         @account_albums.each_key { | a | @ui.facebook_albums_combo.add_item(a) }
-        prev_album_name = prev_album_settings['name']
+        prev_album_name = prev_album_settings[:name]
         @ui.facebook_albums_combo.set_selected_item(prev_album_name) if prev_album_name && @account_albums[prev_album_name]
         handle_album_change
       else
