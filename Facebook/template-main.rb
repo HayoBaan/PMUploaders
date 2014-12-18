@@ -394,7 +394,7 @@ class FacebookConnection < OAuthConnection
   end
 
   def get_albums
-    # See what permissions we have
+    # See what albums we have
     albums = {}
     begin
       response = get('me/albums');
