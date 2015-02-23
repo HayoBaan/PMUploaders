@@ -1612,7 +1612,7 @@ class OAuthConnection
     qstr = ""
     query_hash.each_pair do |key, value|
       qstr += (qstr.empty? ? "?" : "&")
-      qstr += URI.escape(key.to_s) + "=" + URI.escape(value.to_s)
+      qstr += URI.escape(key.to_s) + "=" + URI.escape(value.to_s).gsub(/[&=]/) { |s| '%' + ("%02X" % s[0].to_s) }
     end
     qstr
   end
