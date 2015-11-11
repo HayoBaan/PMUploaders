@@ -107,9 +107,8 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
     create_control(:meta_shutter_speed_edit,   EditControl, dlg, :value=>"{shutter}", :multiline=>false)
     create_control(:meta_iso_static,           Static,      dlg, :label=>"ISO:")
     create_control(:meta_iso_edit,             EditControl, dlg, :value=>"{iso}", :multiline=>false)
-    # Currently, the 500px api doesn't allow setting "taken at" :-(
-    # create_control(:meta_taken_at_static,      Static,      dlg, :label=>"Taken at")
-    # create_control(:meta_taken_at_edit,        EditControl, dlg, :value=>"{day0}/{month0}/{year4} {time}", :multiline=>false)
+    create_control(:meta_taken_at_static,      Static,      dlg, :label=>"Taken at")
+    create_control(:meta_taken_at_edit,        EditControl, dlg, :value=>"{day0}/{month0}/{year4} {time}", :multiline=>false)
     create_control(:meta_latitude_static,      Static,      dlg, :label=>"Latitude:")
     create_control(:meta_latitude_edit,        EditControl, dlg, :value=>"{latitude}", :multiline=>false)
     create_control(:meta_longitude_static,     Static,      dlg, :label=>"Longitude:")
@@ -177,9 +176,9 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
       c << @meta_iso_static.layout(0, c.base, 80, sh)
       c << @meta_iso_edit.layout(c.prev_right, c.base, -1, eh)
       c.pad_down(5).mark_base
-      # c << @meta_taken_at_static.layout(0, c.base, 80, sh)
-      # c << @meta_taken_at_edit.layout(c.prev_right, c.base, -1, eh)
-      # c.pad_down(5).mark_base
+      c << @meta_taken_at_static.layout(0, c.base, 80, sh)
+      c << @meta_taken_at_edit.layout(c.prev_right, c.base, -1, eh)
+      c.pad_down(5).mark_base
       c << @meta_latitude_static.layout(0, c.base, 80, sh)
       c << @meta_latitude_edit.layout(c.prev_right, c.base, -1, eh)
       c.pad_down(5).mark_base
@@ -236,8 +235,7 @@ class U500pxFileUploader < OAuthFileUploader
       "license_type" => @ui.meta_license_type_combo.get_selected_item.to_i.to_s,
       "privacy" => @ui.meta_privacy_check.checked? ? "1" : "0"
     }
-    # Setting taken_at currently not supported by 500px
-    [ "name", "description", "shutter_speed", "focal_length", "aperture", "iso", "camera", "lens", "latitude", "longitude", "tags" ].each do |item|
+    [ "name", "description", "shutter_speed", "focal_length", "aperture", "iso", "camera", "lens", "taken_at", "latitude", "longitude", "tags" ].each do |item|
       itemvalue = eval "@ui.meta_#{item}_edit.get_text"
       metadata[item] = itemvalue
     end
