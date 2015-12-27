@@ -1723,7 +1723,7 @@ class OAuthConnection
     # NOTE: Because of sandbox restrictions, the code is overly complex
     # E.g., the sandbox does not even allow you to do "#{err}" or
     #   "#{err.inspect}" when err is a hash...
-    unless response.code == "200"
+    unless response.code == "200" || response.code == "201"
       begin
         result = JSON::parse(response.body)
         # Error can be in 'error' or 'errors'
