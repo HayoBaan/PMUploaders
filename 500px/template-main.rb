@@ -35,7 +35,16 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
 
   def create_controls(dlg)
     super
+    create_control(:gallery_group_box,         GroupBox,    dlg, :label=>"Create new 500px Gallery:")
+    create_control(:gallery_name_static,       Static,      dlg, :label=>"Gallery Name:")
+    create_control(:gallery_name_edit,         EditControl, dlg, :value=>"", :multiline=>false)
+    create_control(:gallery_privacy_check,     CheckBox,    dlg, :label=>"Privacy")
+    create_control(:gallery_create_btn,        Button,      dlg, :label=>"Create Gallery")
+    create_control(:gallery_status_static,     Static,      dlg, :label=>"")
+    
     create_control(:meta_left_group_box,       GroupBox,    dlg, :label=>"500px Metadata:")
+    create_control(:meta_gallery_static,       Static,      dlg, :label=>"Gallery:")
+    create_control(:meta_gallery_combo,        ComboBox,    dlg, :items=>[])
     create_control(:meta_category_static,      Static,      dlg, :label=>"Category:")
     create_control(:meta_category_combo,       ComboBox,    dlg, :items=>[
                      "00 - Uncategorized",
@@ -122,9 +131,28 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
     
     sh, eh = 20, 24
 
+    container.layout_with_contents(@gallery_group_box, 0, container.base, -1, -1) do |c|
+      c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
+      c << @gallery_name_static.layout(0, c.base+3, 80, sh)
+      c << @gallery_name_edit.layout(c.prev_right, c.base, "50%-15", eh)
+      c << @gallery_privacy_check.layout("50%+15", c.base, -1, sh)
+      c.pad_down(5).mark_base
+      c << @gallery_create_btn.layout(80+5, c.base, 120, eh)
+      c << @gallery_status_static.layout(c.prev_right+5, c.base+3, -1, sh)
+      c.pad_down(5).mark_base
+      
+      c.mark_base.size_to_base
+    end
+
+    container.pad_down(5).mark_base
+    container.mark_base.size_to_base
+       
     container.layout_with_contents(@meta_left_group_box, 0, container.base, "50%-5", -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
-
+      c << @meta_gallery_static.layout(0, c.base+3, 80, sh)
+      c << @meta_gallery_combo.layout(c.prev_right, c.base, -1, eh)
+      c.pad_down(5).mark_base
+      
       c << @meta_category_static.layout(0, c.base+3, 80, sh)
       c << @meta_category_combo.layout(c.prev_right, c.base, 193, eh)
       c << @meta_nsfw_check.layout(c.prev_right+10, c.base, -1, sh)
@@ -197,6 +225,10 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
 end
 
 class U500pxBackgroundDataFetchWorker < OAuthBackgroundDataFetchWorker
+  def connection
+    @connection ||= U500pxConnection.new(@bridge)
+  end
+   
   def initialize(bridge, dlg)
     @client = U500pxClient.new(@bridge)
     super
@@ -226,9 +258,96 @@ class U500pxFileUploader < OAuthFileUploader
     "https://www.500px.com/"
   end
 
+  def create_controls(dlg)
+    super
+    @ui.gallery_create_btn.on_click { handle_create_gallery }
+  end
+
   protected
 
+  def connection
+    dbglog("connection")
+    if @connection.nil?
+      @connection = U500pxConnection.new(@bridge)
+      connection.set_tokens(account.access_token, account.access_token_secret)
+    end
+    @connection
+  end
+
+  def set_gallery_status_text(txt)
+    @ui.gallery_status_static.set_text(txt)
+  end
+
+  def handle_create_gallery
+    name = @ui.gallery_name_edit.get_text
+    privacy = @ui.gallery_privacy_check.checked? ? "1" : "0"
+    set_gallery_status_text("")
+    if (name.empty?)
+      set_gallery_status_text("To create a new gallery, enter a gallery name")
+    elsif (galleries.has_key?(name))
+      set_gallery_status_text("Gallery #{name} already exists, choose a new name")
+    else
+      begin
+        response = connection.post("users/#{userid}/galleries" + connection.create_query_string_from_hash({ "name" => name, "kind" => 4, "privacy" => privacy }))
+        connection.require_server_success_response(response)
+        set_gallery_status_text("Gallery #{name} succesfully created")
+        update_gallery_combo
+      rescue StandardError => ex
+        set_gallery_status_text("Unable to create new gallery: #{ex.message}")
+      end
+    end
+  end
+
+  def userid
+    if @userid.nil?
+      response = connection.get('users')
+      connection.require_server_success_response(response)
+      response_body = JSON.parse(response.body)
+      @userid = response_body['user']['id']
+    end
+    @userid
+  end
+
+  def galleries
+    @galleries ||= get_galleries
+  end
+
+  def get_galleries
+      response = connection.get("users/#{userid}/galleries?privacy=both")
+      connection.require_server_success_response(response)
+      response_body = JSON.parse(response.body)
+      gallery_info = response_body['galleries']
+      @galleries = {}
+      gallery_info.each { |g| @galleries[g['name']] = g['id'] }
+      @galleries
+  end
+
+  def update_gallery_combo
+    get_galleries
+    names = @galleries.keys
+    names.sort!
+    names.insert(0, "— Select a Gallery (optional)  —")
+    @ui.meta_gallery_combo.reset_content(names)
+  end
+    
+   
+  def account_parameters_changed
+    super
+    if account.nil? || !account.appears_valid?
+      return
+    end
+    begin
+      userid = nil
+      update_gallery_combo
+    rescue StandardError => ex
+      set_status_text("Error fetching Galleries for account: #{ex.message}")
+    end
+  end
+
+
   def build_additional_upload_spec(spec, ui)
+    spec.userid = userid
+    spec.galleryid = @galleries["#{@ui.meta_gallery_combo.get_selected_item_text}"]
     metadata = {
       "category" => @ui.meta_category_combo.get_selected_item.to_i.to_s,
       "nsfw" => @ui.meta_nsfw_check.checked? ? "1" : "0",
@@ -317,6 +436,12 @@ class U500pxUploadProtocol < OAuthUploadProtocol
       # Image itself is uploaded to domain upload.500px.com instead of the normal api.500px.com!
       connection_image_upload.post('upload' + upload_qstr, data, headers)
       connection.require_server_success_response(response)
+      # Add photo to gallery
+      if (!spec.galleryid.nil?) then
+        jsonparam = JSON.generate( { "add" => { "photos" => [ response_body["photo"]["id"] ] } } )
+        response = connection.put("users/#{spec.userid}/galleries/#{spec.galleryid}/items", jsonparam)
+        connection.require_server_success_response(response)
+      end
     ensure
       connection.mute_transfer_status
     end
