@@ -344,7 +344,6 @@ class U500pxFileUploader < OAuthFileUploader
     end
   end
 
-
   def build_additional_upload_spec(spec, ui)
     spec.userid = userid
     spec.galleryid = @galleries["#{@ui.meta_gallery_combo.get_selected_item_text}"]
@@ -439,7 +438,7 @@ class U500pxUploadProtocol < OAuthUploadProtocol
       # Add photo to gallery
       if (!spec.galleryid.nil?) then
         jsonparam = JSON.generate( { "add" => { "photos" => [ response_body["photo"]["id"] ] } } )
-        response = connection.put("users/#{spec.userid}/galleries/#{spec.galleryid}/items", jsonparam)
+        response = connection.put("users/#{spec.userid}/galleries/#{spec.galleryid}/items", jsonparam, { "Content-Type" => "application/json" })
         connection.require_server_success_response(response)
       end
     ensure
