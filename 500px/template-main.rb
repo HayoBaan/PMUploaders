@@ -14,7 +14,7 @@ TEMPLATE_DISPLAY_NAME = "500px"
 
 class U500pxConnectionSettings < OAuthConnectionSettings
   include PM::ConnectionSettingsTemplate # This also registers the class as Connection Settings
-  
+
   def client
     @client ||= U500pxClient.new(@bridge)
   end
@@ -41,7 +41,7 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
     create_control(:gallery_privacy_check,     CheckBox,    dlg, :label=>"Privacy")
     create_control(:gallery_create_btn,        Button,      dlg, :label=>"Create Gallery")
     create_control(:gallery_status_static,     Static,      dlg, :label=>"")
-    
+
     create_control(:meta_left_group_box,       GroupBox,    dlg, :label=>"500px Metadata:")
     create_control(:meta_gallery_static,       Static,      dlg, :label=>"Gallery:")
     create_control(:meta_gallery_combo,        ComboBox,    dlg, :items=>[])
@@ -128,7 +128,7 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
 
   def layout_controls(container)
     super
-    
+
     sh, eh = 20, 24
 
     container.layout_with_contents(@gallery_group_box, 0, container.base, -1, -1) do |c|
@@ -140,19 +140,19 @@ class U500pxFileUploaderUI < OAuthFileUploaderUI
       c << @gallery_create_btn.layout(80+5, c.base, 120, eh)
       c << @gallery_status_static.layout(c.prev_right+5, c.base+3, -1, sh)
       c.pad_down(5).mark_base
-      
+
       c.mark_base.size_to_base
     end
 
     container.pad_down(5).mark_base
     container.mark_base.size_to_base
-       
+
     container.layout_with_contents(@meta_left_group_box, 0, container.base, "50%-5", -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
       c << @meta_gallery_static.layout(0, c.base+3, 80, sh)
       c << @meta_gallery_combo.layout(c.prev_right, c.base, -1, eh)
       c.pad_down(5).mark_base
-      
+
       c << @meta_category_static.layout(0, c.base+3, 80, sh)
       c << @meta_category_combo.layout(c.prev_right, c.base, 193, eh)
       c << @meta_nsfw_check.layout(c.prev_right+10, c.base, -1, sh)
@@ -228,7 +228,7 @@ class U500pxBackgroundDataFetchWorker < OAuthBackgroundDataFetchWorker
   def connection
     @connection ||= U500pxConnection.new(@bridge)
   end
-   
+
   def initialize(bridge, dlg)
     @client = U500pxClient.new(@bridge)
     super
@@ -241,7 +241,7 @@ class U500pxFileUploader < OAuthFileUploader
   def self.file_uploader_ui_class
     U500pxFileUploaderUI
   end
-  
+
   def self.conn_settings_class
     U500pxConnectionSettings
   end
@@ -329,8 +329,8 @@ class U500pxFileUploader < OAuthFileUploader
     names.insert(0, "— Select a Gallery (optional)  —")
     @ui.meta_gallery_combo.reset_content(names)
   end
-    
-   
+
+
   def account_parameters_changed
     super
     if account.nil? || !account.appears_valid?
@@ -385,7 +385,7 @@ class U500pxClient < OAuthClient
   def connection
     @connection ||= U500pxConnection.new(@bridge)
   end
-  
+
   def get_account_name(result)
     # Now we get the name from the user record on 500px
     @verifier = nil
@@ -404,7 +404,7 @@ class U500pxConnectionImageUpload < U500pxConnection
   end
 end
 
-    
+
 class U500pxUploadProtocol < OAuthUploadProtocol
   def connection
     @connection ||= U500pxConnection.new(@bridge)
@@ -413,7 +413,7 @@ class U500pxUploadProtocol < OAuthUploadProtocol
   def connection_image_upload
     @connection_image_upload ||= U500pxConnectionImageUpload.new(@bridge)
   end
-  
+
   def upload(fname, remote_filename, spec)
     fcontents = @bridge.read_file_for_upload(fname)
     mime = MimeMultipart.new

@@ -43,7 +43,7 @@ module ImageProcessingControlsCreation
     create_control(:convert_to_sRGB_check,      CheckBox,       dlg, :label=>"Convert to sRGB")
     create_control(:sharpen_check,              CheckBox,       dlg, :label=>"Sharpen")
   end
-  
+
   def create_jpeg_controls(parent_dlg)
     dlg = parent_dlg
     create_control(:jpeg_low_static,            Static,         dlg, :label=>"Quality: Low", :align=>"right")
@@ -80,9 +80,9 @@ module OperationsControlsCreation
   include RenamingControlsCreation
 
   protected
-  
+
   def create_operations_controls(parent_dlg)
-    dlg = parent_dlg  
+    dlg = parent_dlg
     create_control(:operations_group_box,       GroupBox,       dlg, :label=>"Operations:")
     create_control(:apply_iptc_check,           CheckBox,       dlg, :label=>"Apply IPTC stationery")
     create_control(:stationery_pad_btn,         StationeryPadButton, dlg, :label=>"IPTC Stationery Pad...")
@@ -139,7 +139,7 @@ module ImageProcessingControlsLayout
 
     c.mark_base.size_to_base
   end
-  
+
   def layout_jpeg_controls(c, eh, sh)
       c << @jpeg_low_static.layout(12, c.base+3, 80, sh)
         slider_left = c.prev_right
@@ -162,7 +162,7 @@ end
 module RenamingControlsLayout
   protected
 
-  def layout_renaming_controls(c, eh, sh, w1) 
+  def layout_renaming_controls(c, eh, sh, w1)
     c << @rename_as_check.layout(0, c.base, 100, eh)
     c.pad_down(5).mark_base
       c << @rename_string_edit.layout(w1, c.base, -100, eh)
@@ -177,7 +177,7 @@ end
 module OperationsControlsLayout
   include RenamingControlsLayout
 
-  protected  
+  protected
   def layout_operations_controls(container, eh, sh, rp)
     container.layout_with_contents(@operations_group_box, "50%+5", container.base, -1, -1) do |c|
       c.set_prev_right_pad(rp).inset(10,25,-10,-5).mark_base
@@ -301,7 +301,7 @@ module ImageProcessingControlsLogic
 
   def preflight_jpeg_controls
     is_limiting = @ui.jpeg_limit_size_check.checked?
-    
+
     if is_limiting
       limit_size = Float(@ui.jpeg_limit_size_edit.get_text) rescue 0
       raise "Please enter a file size limit of at least 0.01 MB." unless limit_size >= 0.01
@@ -425,7 +425,7 @@ module RenamingControlsLogic
 
   def adjust_renaming_controls
     enable_renaming_controls = @ui.rename_as_check.checked?
-    ctls = [    
+    ctls = [
       @ui.rename_string_edit,
       @ui.use_seqn_check,
     ]
@@ -444,7 +444,7 @@ module RenamingControlsLogic
 
   def preflight_renaming_controls
     return unless @ui.rename_as_check.checked?
-    
+
     rstr = @ui.rename_string_edit.get_text
     if rstr.strip.empty?
       raise("\"Rename as\" is checked, but renaming field is blank. "+
@@ -490,7 +490,7 @@ module OperationsControlsLogic
     @ui.save_copy_userdir_static.set_text(path) if path
     path
   end
-  
+
   def adjust_operations_controls
     enable_save_copy_controls = @ui.save_copy_check.checked?
     ctls = [
@@ -543,7 +543,7 @@ module CopyPhotosComboConstants
   COPY_PHOTOS_DEST_DATED       = "into destination with dated folder"
   COPY_PHOTOS_DEST_NAMED       = "into destination with name"
   COPY_PHOTOS_DEST_DATED_NAMED = "into destination with dated folder and name"
-  
+
   def self.label_to_spec(label)
     case label
     when COPY_PHOTOS_DEST_DATED       then "dest_with_dated_folder"
@@ -581,7 +581,7 @@ module JpegSizeEstimationLogic
   protected
   def handle_jpeg_size_estimation(recalc=true)
     return unless @ui
-    
+
     have_jpeg_size_limits = !! @ui.instance_variable_get("@jpeg_limit_size_check")
 
     if have_jpeg_size_limits && @ui.jpeg_limit_size_check.checked?
@@ -592,7 +592,7 @@ module JpegSizeEstimationLogic
   end
 
   def handle_limit_size_update
-    @ui.jpeg_size_static.set_text "Min. Quality:#{@ui.jpeg_minqlty_slider.getpos}"    
+    @ui.jpeg_size_static.set_text "Min. Quality:#{@ui.jpeg_minqlty_slider.getpos}"
   end
 
   def handle_jpeg_dynamic_size_estimation(recalc)
@@ -620,7 +620,7 @@ module JpegSizeEstimationLogic
       fmt_bytesize(size)
     end
 
-    @ui.jpeg_size_static.set_text "#{@ui.jpeg_qlty100_slider.getpos}:#{size_str}"    
+    @ui.jpeg_size_static.set_text "#{@ui.jpeg_qlty100_slider.getpos}:#{size_str}"
   end
 end
 
@@ -701,24 +701,24 @@ class CrossThreadMessageDispatcher
     @qfactory = queue_factory_proc
     @msgq = @qfactory.call
   end
-  
+
   def wrap_obj(obj)
     CrossThreadMessageProxy.new(self, obj, @qfactory.call)
   end
-  
+
   def exec_messages
     until @msgq.empty?
       msg = @msgq.pop
       execmsg(msg)
     end
   end
-  
+
   def enqueue_message(msg)
     @msgq.push(msg)
   end
-  
+
   protected
-  
+
   def execmsg(msg)
     res = nil
     begin
@@ -742,7 +742,7 @@ class BackgroundDataFetchWorkerManager
   def exec_messages
     @dispatcher.exec_messages
   end
-  
+
   def terminate
     @done = true
     if @worker_th
@@ -757,13 +757,13 @@ class BackgroundDataFetchWorkerManager
       @dispatcher = nil
     end
   end
-  
+
   protected
-  
+
   def wrap_objs(objs)
     objs.map {|o| @dispatcher.wrap_obj(o)}
   end
-  
+
   def run_worker_task
     until @done
       begin
@@ -793,7 +793,7 @@ module TemplateUnitTestAsserts
   def assert(val, msg="assert failed")
     val or raise("#{msg}: #{val.inspect} is not true")
   end
-  
+
   def assert_equal(expected, actual, msg="assert failed")
     (expected == actual) or raise("#{msg}: expected #{expected.inspect}, got #{actual.inspect}")
   end
@@ -883,7 +883,7 @@ class OAuthConnectionSettings
   def self.template_display_name
     TEMPLATE_DISPLAY_NAME
   end
-  
+
   def self.template_description
     "#{TEMPLATE_DISPLAY_NAME} Connection Settings"
   end
@@ -1096,7 +1096,7 @@ class OAuthFileUploaderUI
   include AutoAccessor
   include CreateControlHelper
   include ImageProcessingControlsCreation
-  include RenamingControlsCreation 
+  include RenamingControlsCreation
   include OperationsControlsCreation
   include ImageProcessingControlsLayout
 
@@ -1180,7 +1180,7 @@ class OAuthFileUploaderUI
     container.pad_down(5).mark_base
   end
 
-  def layout_processing_controls(container)      
+  def layout_processing_controls(container)
     sh, eh = 20, 24
 
     container.layout_with_contents(@transmit_group_box, 0, container.base, "50%-5", -1) do |c|
@@ -1297,7 +1297,7 @@ class OAuthFileUploader
   def self.template_display_name
     TEMPLATE_DISPLAY_NAME
   end
-  
+
   def self.template_description
     "Upload images to #{TEMPLATE_DISPLAY_NAME}"
   end
@@ -1550,7 +1550,7 @@ class OAuthFileUploader
     spec.upload_processing_type = ui.send_original_radio.checked? ? processing_orgs_type : "save_as_jpeg"
     spec.send_incompatible_originals_as = "JPEG"
     spec.send_wav_files = ui.valid_file_types.empty? || ui.valid_file_types.include?("WAV")
-    
+
     build_jpeg_spec(spec, ui)
     build_image_processing_spec(spec, ui)
     build_operations_spec(spec, ui)
@@ -1695,7 +1695,7 @@ class OAuthConnection
   end
 
   def get(path, params = {})
-    headers = request_headers(:get, @base_url + path, params, {})  
+    headers = request_headers(:get, @base_url + path, params, {})
     request(:get, path, params, headers)
   end
 
@@ -1730,7 +1730,7 @@ class OAuthConnection
         err = result['error'] || result['errors']
       rescue
         # If result not in JSON, try xml <error></error> pairs
-        err = []       
+        err = []
         response.body.scan(/<error>((?!<\/error>).*)<\/error>/m){ | e | err.push e }
       end
       begin
@@ -1761,7 +1761,7 @@ class OAuthConnection
       dbglog "Server error: #{err}"
       raise err
     end
-  end 
+  end
 
   def set_tokens(token, token_secret)
     @access_token = token

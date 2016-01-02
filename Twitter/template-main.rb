@@ -14,7 +14,7 @@ TEMPLATE_DISPLAY_NAME = "Twitter"
 
 class TwitterConnectionSettings < OAuthConnectionSettings
   include PM::ConnectionSettingsTemplate # This also registers the class as Connection Settings
-  
+
   def client
     @client ||= TwitterClient.new(@bridge)
   end
@@ -47,7 +47,7 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
 
   def layout_controls(container)
     super
-    
+
     sh, eh, w = 20, 24, 160
 
     container.layout_with_contents(@tweet_group_box, 0, container.base, -1, -1) do |c|
@@ -88,7 +88,7 @@ class TwitterFileUploader < OAuthFileUploader
   def self.file_uploader_ui_class
     TwitterFileUploaderUI
   end
-  
+
   def self.conn_settings_class
     TwitterConnectionSettings
   end
@@ -172,7 +172,7 @@ class TwitterClient < OAuthClient
   def connection
     @connection ||= TwitterConnection.new(@bridge)
   end
-  
+
   def get_account_name(result)
     result['screen_name'].to_s
   end
@@ -181,8 +181,8 @@ end
 class TwitterUploadProtocol < OAuthUploadProtocol
   def connection
     @connection ||= TwitterConnection.new(@bridge)
-  end  
-  
+  end
+
   def tweet_body(spec)
     tweet_body = spec.tweet_info[spec.unique_id]["body"]
     if tweet_body.jsize > spec.max_tweet_length

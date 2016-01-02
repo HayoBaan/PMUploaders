@@ -14,7 +14,7 @@ TEMPLATE_DISPLAY_NAME = "Dropbox"
 
 class DropboxConnectionSettings < OAuthConnectionSettings
   include PM::ConnectionSettingsTemplate # This also registers the class as Connection Settings
-  
+
   def client
     @client ||= DropboxClient.new(@bridge)
   end
@@ -56,7 +56,7 @@ class DropboxFileUploaderUI < OAuthFileUploaderUI
 
   def layout_controls(container)
     super
-    
+
     sh, eh, w = 20, 24, 180
 
     container.layout_with_contents(@dropbox_group_box, 0, container.base, -1, -1) do |c|
@@ -93,7 +93,7 @@ class DropboxFileUploader < OAuthFileUploader
   def self.file_uploader_ui_class
     DropboxFileUploaderUI
   end
-  
+
   def self.conn_settings_class
     DropboxConnectionSettings
   end
@@ -168,7 +168,7 @@ class DropboxConnection < OAuthConnection
   end
 
   protected
-  
+
   # TODO: can this be moved to OAuth2Connection?
   def oauth_auth_header(method, uri, params = {})
     if !authenticated?
@@ -220,8 +220,8 @@ end
 class DropboxUploadProtocol < OAuthUploadProtocol
   def connection
     @connection ||= DropboxConnectionImageUpload.new(@bridge)
-  end  
-  
+  end
+
   def upload(fname, remote_filename, spec)
     fcontents = @bridge.read_file_for_upload(fname)
     headers = { "Content-Length" => fcontents.length.to_s }

@@ -14,7 +14,7 @@ TEMPLATE_DISPLAY_NAME = "Facebook"
 
 class FacebookConnectionSettings < OAuthConnectionSettings
   include PM::ConnectionSettingsTemplate # This also registers the class as Connection Settings
-  
+
   def client
     @client ||= FacebookClient.new(@bridge)
   end
@@ -94,7 +94,7 @@ class FacebookNewAlbumDialogUI < Dlg::DynModalChildDialog
     c << @album_name_static.layout(0, c.base, -1, sh)
     c.pad_down(0).mark_base
     c << @album_name_edit.layout(0, c.base, -1, eh)
-    c.pad_down(5).mark_base     
+    c.pad_down(5).mark_base
     c << @album_message_static.layout(0, c.base, -1, sh)
     c.pad_down(0).mark_base
     c << @album_message_edit.layout(0, c.base, -1, eh*3)
@@ -133,7 +133,7 @@ end
 
 class FacebookFileUploaderUI < OAuthFileUploaderUI
   include FacebookPrivacy
-  
+
   def valid_file_types
     [ "JPEG", "GIF", "PNG", "TIFF" ] # all file types are valid
   end
@@ -157,13 +157,13 @@ class FacebookFileUploaderUI < OAuthFileUploaderUI
     create_control(:facebook_message_edit,      EditControl, dlg, :value => "{caption} – uploaded via Photo Mechanic", :multiline=>true, :persist=>true)
     create_control(:facebook_story_check,       CheckBox,    dlg, :label => "Include in story feed")
     create_facebook_privacy_controls(dlg)
-    
+
     create_processing_controls(dlg)
   end
 
   def layout_controls(container)
     super
-    
+
     sh, eh = 20, 24
 
     container.layout_with_contents(@facebook_group_box, 0, container.base, -1, -1) do |c|
@@ -171,7 +171,7 @@ class FacebookFileUploaderUI < OAuthFileUploaderUI
       c << @facebook_albums_check.layout(0, c.base+1, 80, sh)
       c << @facebook_albums_combo.layout(c.prev_right, c.base, "100%-215", eh)
       c << @facebook_albums_new_button.layout(-200, c.base, 200, eh)
-      c.pad_down(5).mark_base     
+      c.pad_down(5).mark_base
       c << @facebook_message_static.layout(0, c.base, -1, sh)
       c.pad_down(0).mark_base
       c << @facebook_message_edit.layout(0, c.base, -1, eh*3)
@@ -204,7 +204,7 @@ class FacebookFileUploader < OAuthFileUploader
   def self.file_uploader_ui_class
     FacebookFileUploaderUI
   end
-  
+
   def self.conn_settings_class
     FacebookConnectionSettings
   end
@@ -242,7 +242,7 @@ class FacebookFileUploader < OAuthFileUploader
     @ui.facebook_albums_combo.on_sel_change { handle_album_change }
     @ui.facebook_albums_new_button.on_click { handle_new_album }
   end
-  
+
   def upload_files(global_spec, progress_dialog)
     raise "Please authorize Photo Mechanic to publish on your behalf" unless @account_permissions['publish_actions']
     super
@@ -282,7 +282,7 @@ class FacebookFileUploader < OAuthFileUploader
       @previous_account_album_settings[@ui.dest_account_combo.get_selected_item][k] = v
     }
   end
-  
+
   def handle_album_check
     update_previous_account_album_settings({ :checked => @ui.facebook_albums_check.checked? })
     adjust_album_controls
@@ -346,10 +346,10 @@ class FacebookFileUploader < OAuthFileUploader
       set_status_text("Please select an account, or create one with the Connections button.")
       return
     end
- 
+
     connection = FacebookConnection.new(@bridge)
     connection.set_tokens(account.access_token, account.access_token_secret)
-    
+
     # See what permissions we have
     @account_permissions = connection.get_permissions
 
@@ -400,7 +400,7 @@ class FacebookConnection < OAuthConnection
       response = get('me/albums');
       require_server_success_response(response)
       result = JSON::parse(response.body)
-      result['data'].each { | a | albums[a['name'] + (albums[a['name']] ? " (#{a['id']})" : "")] = a }    
+      result['data'].each { | a | albums[a['name'] + (albums[a['name']] ? " (#{a['id']})" : "")] = a }
     rescue
       # Ignore any errors
     end
@@ -428,7 +428,7 @@ class FacebookConnection < OAuthConnection
   def post(path, params = {}, upload_headers = {})
     path = add_authentication(path)
     super(path, params, upload_headers)
-  end 
+  end
 
   protected
 
@@ -442,7 +442,7 @@ class FacebookClient < OAuth2Client
   def connection
     @connection ||= FacebookConnection.new(@bridge)
   end
-  
+
   def authorization_url
     "https://www.facebook.com/dialog/oauth" +
       connection.create_query_string_from_hash({
@@ -471,8 +471,8 @@ end
 class FacebookUploadProtocol < OAuthUploadProtocol
   def connection
     @connection ||= FacebookConnection.new(@bridge)
-  end  
-  
+  end
+
   def upload(fname, remote_filename, spec)
     fcontents = @bridge.read_file_for_upload(fname)
     mime = MimeMultipart.new
