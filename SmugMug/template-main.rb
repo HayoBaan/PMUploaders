@@ -419,7 +419,7 @@ class SmugMugCreateGalleryDialog < Dlg::DynModalChildDialog
 
     cat_name = @category_combo.get_selected_item
     cat_id = @categories.name_to_id( cat_name )
-    unless cat_id
+    unless cat_id || cat_name.empty?
       Dlg::MessageBox.ok("Couldn't find id for category #{cat_name}.", Dlg::MessageBox::MB_ICONEXCLAMATION)
       return
     end
@@ -958,7 +958,7 @@ SmugMugCategory = Struct.new(:category_id, :name)
 class SmugMugCategoryList
   include Enumerable
 
-  def initialize(bridge, xml_resp)
+  def initialize(bridge, xml_resp, sub_xml_resp)
     @bridge = bridge
     @categories = []
     # doc = REXML::Document.new(xml_resp)
@@ -967,10 +967,19 @@ class SmugMugCategoryList
     root = doc.get_elements("rsp/Categories").first
     root or raise("bad server response - categories root element missing")
     parse_categories(root)
+    #dbgprint "SmugMugSubCategoryList, sub_xml_resp: #{sub_xml_resp}"
+    doc = @bridge.xml_document_parse(sub_xml_resp)
+    root = doc.get_elements("rsp/SubCategories").first
+    root or raise("bad server response - subcategories root element missing")
+    parse_sub_categories(root)
   end
   
   def count
     @categories.length
+  end
+
+  def find_by_id(id)
+    @categories.find {|cat| cat.id == id}
   end
 
   def find_by_name(name)
@@ -995,14 +1004,24 @@ class SmugMugCategoryList
   def parse_categories(parent_node)
     children = parent_node.get_elements("Category")
     children.each do |node|
-      cat = construct_category(node)
+      cat = construct_category(node, "")
       @categories << cat
     end
   end
 
-  def construct_category(node)
+  def parse_sub_categories(parent_node)
+    children = parent_node.get_elements("SubCategory")
+    children.each do |node|
+      fromcat = node.get_elements("Category").first
+      #dbgprint "Found #{#{node.attribute('Name')} node.attribute('id')} from #{fromcat.attribute('Name')} #{fromcat.attribute('id')}"
+      subcat = construct_category(node, fromcat.attribute('Name').to_s + "/")
+      @categories << subcat
+    end
+  end
+
+  def construct_category(node, parent_path)
     category_id = node.attribute('id').to_s
-    name = node.attribute('Name').to_s
+    name = parent_path + node.attribute('Name').to_s
     cat = SmugMugCategory.new(category_id, name)
   end
 end
@@ -1180,7 +1199,13 @@ class SmugMugFileUploaderProtocol
     headers = { "User-Agent" => "PM5" }
     resp = get(params, headers).body
 
-    categories = SmugMugCategoryList.new(@bridge, resp)
+    params = { "method" => 'smugmug.subcategories.getAll',
+               "SessionID" => @session_id
+             }
+    headers = { "User-Agent" => "PM5" }
+    sub_resp = get(params, headers).body
+
+    categories = SmugMugCategoryList.new(@bridge, resp, sub_resp)
   end
 
   def get_albums
@@ -1202,8 +1227,11 @@ class SmugMugFileUploaderProtocol
     params = { "method" => 'smugmug.albums.create',
                "SessionID" => @session_id,
                "Title" => name,
-               "CategoryID" => category_id
              }
+    if (category_id)
+      params["CategoryID"] = category_id
+    end
+
     headers = { "User-Agent" => "PM5" }
     resp = get(params, headers).body
     (resp =~ /<rsp\s[^>]*stat\s*=[\s"]*ok/m) or raise("smugmug.albums.create failed for #{name.inspect}, category #{category_id.inspect}")
