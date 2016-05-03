@@ -466,7 +466,9 @@ class SmugMugFileUploaderUI
     create_control(:dest_gallery_static,        Static,         dlg, :label=>"Gallery:", :align=>"right")
     create_control(:dest_gallery_combo,         ComboBox,       dlg, :sorted=>true, :persist=>false)
     create_control(:create_gallery_button,      Button,         dlg, :label=>"Create New Gallery...")
-
+    create_control(:duplicate_handling_static,  Static,         dlg, :label=>"Duplicates:", :align=>"right")
+    create_control(:duplicate_handling_combo,   ComboBox,       dlg, :items => ["Allow", "Replace", "Skip"], :selected=>"Allow", :sorted=>false, :persist=>true)
+    
     create_control(:transmit_group_box,         GroupBox,       dlg, :label=>"Transmit:")
     create_control(:send_original_radio,        RadioButton,    dlg, :label=>"Original Photos", :checked=>true)
     create_control(:send_jpeg_radio,            RadioButton,    dlg, :label=>"Saved as JPEG")
@@ -503,6 +505,9 @@ class SmugMugFileUploaderUI
         cl.pad_down(5).mark_base
         cl << @dest_gallery_static.layout(0, cl.base+3, 120, sh)
         cl << @dest_gallery_combo.layout(cl.prev_right, cl.base, -1, eh)
+        cl.pad_down(5).mark_base
+        cl << @duplicate_handling_static.layout(0, cl.base+3, 120, sh)
+        cl << @duplicate_handling_combo.layout(cl.prev_right, cl.base, -1, eh)
         cl.pad_down(5).mark_base.size_to_base
       end      
 
@@ -663,10 +668,25 @@ class SmugMugFileUploader
     raise "Failed to load settings for current account. Please click the Connections button." unless acct
     spec = build_upload_spec(acct, @ui)
     # @bridge.kickoff_photoshelter_upload(spec.__to_hash__)
+
+    # If duplicates are not allowed, build exisiting file info here
+    if (spec.duplicate_handling != "Allow")
+      username = acct.login
+      password = acct.password
+      prot = SmugMugFileUploaderProtocol.new(@bridge)
+      begin
+        prot.login(username, password)
+        spec.existing_files = prot.get_existing_files(spec.smugmug_gallery_id, spec.smugmug_gallery_key)
+      ensure
+        prot.close
+      end
+    end
+
     @bridge.kickoff_template_upload(spec, SmugMugFileUploaderProtocol)
   end
 
   def preflight_settings(global_spec)
+# dbgprint "in preflight_settings..."
     raise "preflight_settings called with no @ui instantiated" unless @ui
 
     acct = current_account_settings
@@ -890,12 +910,15 @@ class SmugMugFileUploader
     spec.smugmug_login        = acct.login
     spec.smugmug_password     = acct.password
     spec.smugmug_gallery      = ui.dest_gallery_combo.get_selected_item
+    spec.duplicate_handling   = ui.duplicate_handling_combo.get_selected_item
+    spec.existing_files       = {}
     # we aren't supposed to raise exceptions while building the
     # spec (because the jpeg sizing thread wants a best effort)
     # so it will be up to preflight to verify we got the gallery_id
     if @cur_galleries
       spec.smugmug_gallery_id   = @cur_galleries.unique_title_to_id( spec.smugmug_gallery )
-    end
+      spec.smugmug_gallery_key  = (@cur_galleries.find {|gal| gal.album_id == spec.smugmug_gallery_id}).album_key
+   end
 
     # NOTE: upload_queue_key should be unique for a given protocol,
     #       and a given upload "account".
@@ -1013,7 +1036,6 @@ class SmugMugCategoryList
     children = parent_node.get_elements("SubCategory")
     children.each do |node|
       fromcat = node.get_elements("Category").first
-      #dbgprint "Found #{#{node.attribute('Name')} node.attribute('id')} from #{fromcat.attribute('Name')} #{fromcat.attribute('id')}"
       subcat = construct_category(node, fromcat.attribute('Name').to_s + "/")
       @categories << subcat
     end
@@ -1142,12 +1164,21 @@ class SmugMugFileUploaderProtocol
 
     gallery_name = spec.smugmug_gallery
     gallery_id = spec.smugmug_gallery_id
-
+    gallery_key = spec.smugmug_gallery_key
     if gallery_id.to_s.empty?
       raise "Could not obtain SmugMug gallery id for #{gallery_name}. Does the gallery exist?"
     end
 
-    upload(local_filepath, remote_filename, gallery_id)
+    image_id = nil
+    if (spec.duplicate_handling != "Allow")
+      image_id = spec.existing_files[remote_filename]
+    end
+
+    if (image_id.nil? || spec.duplicate_handling != "Skip")
+      upload(local_filepath, remote_filename, gallery_id, image_id)
+    else
+      #dbgprint "Skipped existing file #{remote_filename}"
+    end
 #dbgprint "smugmug: image_upload: func_exit: #{remote_filename}"
 
     final_remote_filename = [gallery_name, remote_filename].join("/")
@@ -1221,6 +1252,46 @@ class SmugMugFileUploaderProtocol
     albums = SmugMugAlbumList.new(@bridge, resp)
   end
 
+  def get_existing_files(gallery_id, gallery_key)
+    # Find ids of existing files
+    # Sadly enough this is a very slow process as SmugMug does not provide
+    # a method to determine if a file already exists :(
+    # What we need to do instead is:
+    # 1. Get all images in the album
+    # 2. For each of these, determine the file info (one by one!)
+    params = { "method" => 'smugmug.images.get',
+               "SessionID" => @session_id,
+               "AlbumID" => gallery_id,
+               "AlbumKey" => gallery_key
+             }
+    headers = { "User-Agent" => "PM5" }
+    resp = get(params, headers).body
+    doc = @bridge.xml_document_parse(resp)
+    existing_files = {}
+    images = doc.get_elements("rsp/Album/Images").first
+    images or raise("bad server response - images root element missing")
+    images.each do |image|
+      image_key = image.attribute('Key')
+      params = { "method" => 'smugmug.images.getInfo',
+                 "SessionID" => @session_id,
+                 "ImageKey" => image_key
+               }
+      headers = { "User-Agent" => "PM5" }
+      resp = get(params, headers).body
+      doc = @bridge.xml_document_parse(resp)
+      info = doc.get_elements("rsp/Image").first
+      info or raise("bad server response - file info root element missing")
+      # Note: we only store the id of the last image with the given filename
+      # So when replacing files, this is the one that get replaced. This is
+      # also how SmugMug does it itself.
+      # Also note that when replacing files, the metadata is NOT updated on
+      # SmugMug, this again is also the way SmugMug does it itself...
+      existing_files[info.attribute('FileName')] = info.attribute('id')
+    end
+
+    existing_files
+  end
+
   def create_album(name, category_id)
     @mute_transfer_status = true
     @session_id or raise("get_albums: no session_id (not logged in?)")
@@ -1237,7 +1308,7 @@ class SmugMugFileUploaderProtocol
     (resp =~ /<rsp\s[^>]*stat\s*=[\s"]*ok/m) or raise("smugmug.albums.create failed for #{name.inspect}, category #{category_id.inspect}")
   end
 
-  def upload(fname, remote_filename, album_id)
+  def upload(fname, remote_filename, album_id, image_id)
     @mute_transfer_status = true
     @session_id or raise("upload: no session_id (not logged in?)")
 
@@ -1258,6 +1329,11 @@ class SmugMugFileUploaderProtocol
                 'X-Smug-FileName' => remote_filename,
                 'User-Agent' => 'PM5'
               }
+    if (image_id)
+      #dbgprint "Overwriting existing file #{remote_filename}"
+      headers["X-Smug-ImageID"] = image_id
+    end
+    
 #dbgprint "smugmug: upload ensure_open_http begin: #{remote_filename}"
     ensure_open_http(uri.host, uri.port)
 #dbgprint "smugmug: upload ensure_open_http end: #{remote_filename}"
