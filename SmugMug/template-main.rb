@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# coding: utf-8
 ##############################################################################
 # Copyright (c) 2006-2013 Camera Bits, Inc.  All rights reserved.
 ##############################################################################
@@ -32,7 +33,7 @@ class SmugMugConnectionSettingsUI
     create_control(:login_static,           Static,       dlg, :label=>"SmugMug email or nick name:")
     create_control(:password_static,        Static,       dlg, :label=>"Password:")
   end
-  
+
   def layout_controls(container)
     sh, eh = 20, 24
     c = container
@@ -83,20 +84,20 @@ class SmugMugConnectionSettings
   def self.fetch_selected_settings_name(serializer)
     serializer.fetch(DLG_SETTINGS_KEY, :selected_item)  # might be nil
   end
-  
-  class SettingsData  
+
+  class SettingsData
     attr_accessor :login, :password
-    
+
     def initialize(login, password)
       @login = login
       @password = password
     end
-    
+
     def appears_valid?
       ! ( @login.nil?  ||  @password.nil?  ||
           @login.to_s.strip.empty?  ||  @password.to_s.strip.empty? )
     end
-    
+
     # Convert a hash of SettingsData, to a hash of
     # arrays, and encrypt the password along the way.
     #
@@ -130,7 +131,7 @@ class SmugMugConnectionSettings
       end
       settings
     end
-    
+
 
   end
 
@@ -153,7 +154,7 @@ class SmugMugConnectionSettings
   def layout_controls(container)
     @ui.layout_controls(container)
   end
-  
+
   def destroy_controls
     @ui = nil
   end
@@ -163,7 +164,7 @@ class SmugMugConnectionSettings
     cur_selected_name = save_current_values_to_settings
     self.class.store_settings_data(serializer, @settings)
     serializer.store(DLG_SETTINGS_KEY, :selected_item, cur_selected_name)
-  end  
+  end
 
   def restore_state(serializer)
     @settings = self.class.fetch_settings_data(serializer)
@@ -222,7 +223,7 @@ class SmugMugConnectionSettings
         @ui.login_edit.get_text.empty?  &&
         @ui.password_edit.get_text.empty? )
   end
-  
+
   def find_non_colliding_name(want_name)
     i = 1  # first rename attempt will be "blah blah 2"
     new_name = want_name
@@ -308,7 +309,7 @@ class SmugMugConnectionSettings
     @prev_selected_settings_name = nil
     clear_settings
   end
-  
+
   def handle_delete_button
     cur_name = @ui.setting_name_combo.get_selected_item_text
     @ui.setting_name_combo.remove_item(cur_name) if @ui.setting_name_combo.has_item? cur_name
@@ -350,7 +351,7 @@ class SmugMugCreateGalleryDialog < Dlg::DynModalChildDialog
     dlg.set_window_position(50, 100, 500, 200)
     title = "Create New Gallery"
     dlg.set_window_title(title)
-    
+
     parent_dlg = dlg
     create_control(:descrip_gallery_static, Static,         parent_dlg, :label=>"Create new SmugMug gallery:", :align=>"left")
     create_control(:category_static,        Static,         parent_dlg, :label=>"Category:", :align=>"left")
@@ -372,7 +373,7 @@ class SmugMugCreateGalleryDialog < Dlg::DynModalChildDialog
     layout_controls
     instantiate_controls
     show(true)
-  end        
+  end
 
   def destroy_dialog!
     if @prot
@@ -394,7 +395,7 @@ class SmugMugCreateGalleryDialog < Dlg::DynModalChildDialog
     c.inset(16, 10, -16, -10)
     c << @descrip_gallery_static.layout(0, c.base, -1, sh)
     c.pad_down(20).mark_base
-    
+
     w1 = 250
     c << @category_static.layout(0, c.base, w1, sh)
       c << @new_gallery_static.layout(c.prev_right + 20, c.base, -1, sh)
@@ -402,14 +403,14 @@ class SmugMugCreateGalleryDialog < Dlg::DynModalChildDialog
     c << @category_combo.layout(0, c.base, w1, eh)
       c << @new_gallery_edit.layout(c.prev_right + 20, c.base, -1, eh)
     c.pad_down(5).mark_base
-    
+
     bw = 80
     c << @create_button.layout(-(bw*2+10), -bh, bw, bh)
       c << @cancel_button.layout(-bw, -bh, bw, bh)
   end
 
   protected
-  
+
   def create_gallery
     gal_name = @new_gallery_edit.get_text.strip
     if gal_name.empty?
@@ -431,7 +432,7 @@ class SmugMugCreateGalleryDialog < Dlg::DynModalChildDialog
       Dlg::MessageBox.ok("Failed to create gallery #{gal_name} on server.\nError: #{ex.message}", Dlg::MessageBox::MB_ICONEXCLAMATION)
     ensure
       end_dialog(IDOK)
-    end 
+    end
   end
 end
 
@@ -468,7 +469,8 @@ class SmugMugFileUploaderUI
     create_control(:create_gallery_button,      Button,         dlg, :label=>"Create New Gallery...")
     create_control(:duplicate_handling_static,  Static,         dlg, :label=>"Duplicates:", :align=>"right")
     create_control(:duplicate_handling_combo,   ComboBox,       dlg, :items => ["Allow", "Replace", "Skip"], :selected=>"Allow", :sorted=>false, :persist=>true)
-    
+    create_control(:duplicate_handling_note,    Static,         dlg, :label=>"Note: selecting anything other than “Allow” can slow down the upload.")
+
     create_control(:transmit_group_box,         GroupBox,       dlg, :label=>"Transmit:")
     create_control(:send_original_radio,        RadioButton,    dlg, :label=>"Original Photos", :checked=>true)
     create_control(:send_jpeg_radio,            RadioButton,    dlg, :label=>"Saved as JPEG")
@@ -509,12 +511,14 @@ class SmugMugFileUploaderUI
         cl << @duplicate_handling_static.layout(0, cl.base+3, 120, sh)
         cl << @duplicate_handling_combo.layout(cl.prev_right, cl.base, -1, eh)
         cl.pad_down(5).mark_base.size_to_base
-      end      
+      end
 
       c.pad_down(0).mark_base
 
       c.layout_subgroup("45%+10", oldbase, -1, c.base - oldbase) do |cl|
         cl << @create_gallery_button.layout(0, cl.base+eh+1, 150, 28)
+        cl.pad_down(5).mark_base
+        cl << @duplicate_handling_note.layout(0, cl.base+3, -1, eh)
         cl.pad_down(0).mark_base
       end
 
@@ -714,7 +718,7 @@ class SmugMugFileUploader
   def create_controls(parent_dlg)
     @ui = SmugMugFileUploaderUI.new(@bridge)
     @ui.create_controls(parent_dlg)
-    
+
     @ui.send_original_radio.on_click {adjust_controls}
     @ui.send_jpeg_radio.on_click {adjust_controls}
 
@@ -736,7 +740,7 @@ class SmugMugFileUploader
   def layout_controls(container)
     @ui.layout_controls(container)
   end
-  
+
   def destroy_controls
     destroy_data_fetch_worker
     @ui = nil
@@ -865,7 +869,7 @@ class SmugMugFileUploader
     end
     account_parameters_changed
   end
-  
+
   def get_prot_with_login(acct)
     username = acct.login
     password = acct.password
@@ -922,7 +926,7 @@ class SmugMugFileUploader
 
     # NOTE: upload_queue_key should be unique for a given protocol,
     #       and a given upload "account".
-    #       Rule of thumb: If file A requires a different 
+    #       Rule of thumb: If file A requires a different
     #       login than file B, they should have different
     #       queue keys.
     #       Thus here for photoshelter, we use login/password/org,
@@ -996,7 +1000,7 @@ class SmugMugCategoryList
     root or raise("bad server response - subcategories root element missing")
     parse_sub_categories(root)
   end
-  
+
   def count
     @categories.length
   end
@@ -1013,7 +1017,7 @@ class SmugMugCategoryList
     cat = find_by_name(name)
     cat ? cat.category_id : nil
   end
-  
+
   def values
     @categories
   end
@@ -1065,7 +1069,7 @@ class SmugMugAlbumList
     parse_albums(root)
     @albums.each {|album| @by_uniq_title[album.unique_title] = album}
   end
-  
+
   def count
     @albums.length
   end
@@ -1117,7 +1121,7 @@ class SmugMugAlbumList
   #   child_node = node.get_elements(child_name).first
   #   txt = child_node ? child_node.text : ""
   # end
-  
+
   def ensure_unique_name(uniq, orig_name)
     i = 2
     name = orig_name
@@ -1137,7 +1141,7 @@ class SmugMugFileUploaderProtocol
     @bridge = pm_api_bridge
     @http = nil
     @cookies = {}
-    # we may make multiple requests while uploading a file, and 
+    # we may make multiple requests while uploading a file, and
     # don't want the progress bar to jump around until we get
     # to the actual upload
     @mute_transfer_status = true
@@ -1146,7 +1150,7 @@ class SmugMugFileUploaderProtocol
 
   def close
     if @http
-      @http.finish rescue nil
+      @http.finish if @http.started?
       @http = nil
     end
     @session_id = nil
@@ -1178,6 +1182,7 @@ class SmugMugFileUploaderProtocol
       upload(local_filepath, remote_filename, gallery_id, image_id)
     else
       #dbgprint "Skipped existing file #{remote_filename}"
+      raise(FileSkippedException)
     end
 #dbgprint "smugmug: image_upload: func_exit: #{remote_filename}"
 
@@ -1203,7 +1208,7 @@ class SmugMugFileUploaderProtocol
   def abort_transfer
     (h = @http) and h.abort_transfer
   end
-  
+
   def login(uname, pass)
     @mute_transfer_status = true
     params = { "method" => "smugmug.login.withPassword",
@@ -1333,7 +1338,7 @@ class SmugMugFileUploaderProtocol
       #dbgprint "Overwriting existing file #{remote_filename}"
       headers["X-Smug-ImageID"] = image_id
     end
-    
+
 #dbgprint "smugmug: upload ensure_open_http begin: #{remote_filename}"
     ensure_open_http(uri.host, uri.port)
 #dbgprint "smugmug: upload ensure_open_http end: #{remote_filename}"
@@ -1349,7 +1354,7 @@ class SmugMugFileUploaderProtocol
 #dbgprint "smugmug: upload **END**"
     true
   end
-  
+
   protected
 
   def ensure_open_http(host, port)
@@ -1364,6 +1369,7 @@ class SmugMugFileUploaderProtocol
       @http.use_ssl = true if port == 443
       @http.open_timeout = 60
       @http.read_timeout = 180
+      @http.start
     end
   end
 
@@ -1381,7 +1387,7 @@ class SmugMugFileUploaderProtocol
     end
     baked.join("; ")
   end
-  
+
   def get(params, headers)
     vars = params.map{|k,v| "#{k}=#{CGI.escape(v)}"}.join('&')
     url = "#{REST_URL}?#{vars}"
@@ -1389,7 +1395,7 @@ class SmugMugFileUploaderProtocol
     ensure_open_http(uri.host, uri.port)
     headers['Cookie'] = "_su=" + @cookies["_su"] if @cookies["_su"]
     res = @http.get(uri.request_uri, headers)
-    
+
     gen_client_cookie(res['set-cookie'])
 
     res
@@ -1416,13 +1422,13 @@ class ServerCookie
       cookies   # we could do further parsing, but Array#each + /regexp/ will get us through for now
     end
   end
-  
+
   def initialize(raw_cookie)
 #dbgprint "ServerCookie.initialize()"
     @raw = raw_cookie
     @cookies = ServerCookie.parse(raw_cookie)
   end
-  
+
   def each
     raise "need block" unless block_given?
     @cookies.each do |k|
