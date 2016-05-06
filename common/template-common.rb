@@ -1,6 +1,6 @@
 # coding: utf-8
 
-FileSkippedException = RuntimeError.new("***SKIPPED***")
+FileSkippedException = PM::FileSkippedException
 
 module ImageProcessingControlsCreation
   include PM::Dlg
@@ -602,7 +602,7 @@ module JpegSizeEstimationLogic
     end
 
     if recalc
-      acct = current_account_settings
+      acct = self.respond_to?(:current_account_settings) ? current_account_settings : cur_account_settings
       if acct
         spec = build_upload_spec(acct, @ui)
         spec = spec.__to_hash__   # can't sent AutoStruct across bridge, but can send plain Hash
@@ -724,6 +724,7 @@ class CrossThreadMessageDispatcher
     begin
       res = msg.target_obj.__send__(msg.message, *msg.args)
     rescue Exception => ex
+      dbglog "CrossThreadMessageDispatcher::execmsg: msg=#{msg.message.inspect} exception: #{ex.inspect}\n#{ex.backtrace_to_s}"
       res = ex
     end
     msg.reply_q.push(res)
@@ -771,7 +772,7 @@ class BackgroundDataFetchWorkerManager
       rescue SignalException, SystemExit => ex
         @done = true
       rescue Exception => ex
-        dbglog "BackgroundDataFetchWorkerManager::run_worker_task: caught exception: #{ex.message}\n#{ex.backtrace_to_s(4)}"
+        dbglog "BackgroundDataFetchWorkerManager::run_worker_task: caught exception: #{ex.message}\n#{ex.backtrace_to_s}"
       end
       sleep 0.25
     end
@@ -823,7 +824,7 @@ class OAuthConnectionSettingsUI
     create_control(:setting_name_combo,       ComboBox,     dlg, :editable=>false, :sorted=>true, :persist=>false)
     create_control(:setting_delete_button,    Button,       dlg, :label=>"Delete Account")
     create_control(:setting_add_button,       Button,       dlg, :label=>"Add/Replace Account")
-    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on ading an account: If you have an active #{TEMPLATE_DISPLAY_NAME} session in your browser, #{TEMPLATE_DISPLAY_NAME} will authorize Photo Mechanic for the account associated with that session. Otherwise, #{TEMPLATE_DISPLAY_NAME} will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code below and press the Verify Code button. The account name will be determined automatically from your #{TEMPLATE_DISPLAY_NAME} user name.")
+    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on adding an account: If you have an active #{TEMPLATE_DISPLAY_NAME} session in your browser, #{TEMPLATE_DISPLAY_NAME} will authorize Photo Mechanic for the account associated with that session. Otherwise, #{TEMPLATE_DISPLAY_NAME} will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code below and press the Verify Code button. The account name will be determined automatically from your #{TEMPLATE_DISPLAY_NAME} user name.")
     create_control(:code_group_box,           GroupBox,    dlg, :label=>"Verification code:")
     create_control(:code_edit,                EditControl, dlg, :value=>"Enter verification code", :persist=>false, :enabled=>false)
     create_control(:code_verify_button,       Button,      dlg, :label=>"Verify Code", :enabled=>false)
@@ -1112,7 +1113,7 @@ class OAuthFileUploaderUI
   end
 
   def metadata_warning_text
-    "Warning: #{TEMPLATE_DISPLAY_NAME} removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media."
+    "WARNING: #{TEMPLATE_DISPLAY_NAME} removes all EXIF and IPTC data from uploaded images. If you'd like to retain credit, we recommend considering a watermark when sharing images on social media."
   end
 
   def ip_warning?
