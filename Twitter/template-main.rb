@@ -34,7 +34,7 @@ class TwitterFileUploaderUI < OAuthFileUploaderUI
 
     create_control(:tweet_group_box,         GroupBox,    dlg, :label=> "Tweet:")
     create_control(:tweet_edit,              EditControl, dlg, :value=> "{caption} – tweeted via @PhotoMechanic", :multiline=>true, :persist=> true)
-    create_control(:tweet_length_static,     Static,      dlg, :label=> "140", :align => 'right')
+    create_control(:tweet_length_static,     Static,      dlg, :label=> "280", :align => 'right')
     create_control(:tweet_sensitive_check,   CheckBox,    dlg, :label=> "Sensitive content")
     create_control(:tweet_coordinates_check, CheckBox,    dlg, :label=> "Display exact coordinates")
     create_control(:tweet_latitude_static,   Static,      dlg, :label=> "Latitude:")
@@ -104,8 +104,8 @@ class TwitterFileUploader < OAuthFileUploader
   def initialize(pm_api_bridge, num_files, dlg_status_bridge, conn_settings_serializer)
     super
     # Twitter doesn't like it when you request the config too often so we hardcode this
-    # max len = 140 - short url length (we take the https version)
-    @max_tweet_length = 140-23
+    # max len = 280 - short url length (we take the https version)
+    @max_tweet_length = 280-23
   end
 
   def create_controls(dlg)
