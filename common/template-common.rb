@@ -43,7 +43,7 @@ module ImageProcessingControlsCreation
     create_control(:convert_to_sRGB_check,      CheckBox,       dlg, :label=>"Convert to sRGB")
     create_control(:sharpen_check,              CheckBox,       dlg, :label=>"Sharpen")
   end
-
+  
   def create_jpeg_controls(parent_dlg)
     dlg = parent_dlg
     create_control(:jpeg_low_static,            Static,         dlg, :label=>"Quality: Low", :align=>"right")
@@ -80,9 +80,9 @@ module OperationsControlsCreation
   include RenamingControlsCreation
 
   protected
-
+  
   def create_operations_controls(parent_dlg)
-    dlg = parent_dlg
+    dlg = parent_dlg  
     create_control(:operations_group_box,       GroupBox,       dlg, :label=>"Operations:")
     create_control(:apply_iptc_check,           CheckBox,       dlg, :label=>"Apply IPTC stationery")
     create_control(:stationery_pad_btn,         StationeryPadButton, dlg, :label=>"IPTC Stationery Pad...")
@@ -139,7 +139,7 @@ module ImageProcessingControlsLayout
 
     c.mark_base.size_to_base
   end
-
+  
   def layout_jpeg_controls(c, eh, sh)
       c << @jpeg_low_static.layout(12, c.base+3, 80, sh)
         slider_left = c.prev_right
@@ -162,7 +162,7 @@ end
 module RenamingControlsLayout
   protected
 
-  def layout_renaming_controls(c, eh, sh, w1)
+  def layout_renaming_controls(c, eh, sh, w1) 
     c << @rename_as_check.layout(0, c.base, 100, eh)
     c.pad_down(5).mark_base
       c << @rename_string_edit.layout(w1, c.base, -100, eh)
@@ -177,7 +177,7 @@ end
 module OperationsControlsLayout
   include RenamingControlsLayout
 
-  protected
+  protected  
   def layout_operations_controls(container, eh, sh, rp)
     container.layout_with_contents(@operations_group_box, "50%+5", container.base, -1, -1) do |c|
       c.set_prev_right_pad(rp).inset(10,25,-10,-5).mark_base
@@ -301,7 +301,7 @@ module ImageProcessingControlsLogic
 
   def preflight_jpeg_controls
     is_limiting = @ui.jpeg_limit_size_check.checked?
-
+    
     if is_limiting
       limit_size = Float(@ui.jpeg_limit_size_edit.get_text) rescue 0
       raise "Please enter a file size limit of at least 0.01 MB." unless limit_size >= 0.01
@@ -425,7 +425,7 @@ module RenamingControlsLogic
 
   def adjust_renaming_controls
     enable_renaming_controls = @ui.rename_as_check.checked?
-    ctls = [
+    ctls = [    
       @ui.rename_string_edit,
       @ui.use_seqn_check,
     ]
@@ -444,7 +444,7 @@ module RenamingControlsLogic
 
   def preflight_renaming_controls
     return unless @ui.rename_as_check.checked?
-
+    
     rstr = @ui.rename_string_edit.get_text
     if rstr.strip.empty?
       raise("\"Rename as\" is checked, but renaming field is blank. "+
@@ -459,6 +459,20 @@ module RenamingControlsLogic
             "renaming variable or sequence variable, such as {seqn}. "+
             "Please enter a valid renaming expression, or "+
             "uncheck the Rename checkbox.")
+    end
+
+    # After evaluating the variable, check to see if we have an empty rename string.
+    if @bridge.vars_have_renaming_var?(rstr)
+      @num_files.times do |img_idx|
+        begin
+          txt = @bridge.expand_vars(rstr, img_idx+1)
+          raise if txt.strip.empty?
+        rescue StandardError => ex
+          raise("The variable #{rstr} returned an empty string. "+
+                "Please enter a valid renaming expression, or "+
+                "uncheck the Rename checkbox.")
+        end
+      end
     end
   end
 end
@@ -490,7 +504,7 @@ module OperationsControlsLogic
     @ui.save_copy_userdir_static.set_text(path) if path
     path
   end
-
+  
   def adjust_operations_controls
     enable_save_copy_controls = @ui.save_copy_check.checked?
     ctls = [
@@ -543,7 +557,7 @@ module CopyPhotosComboConstants
   COPY_PHOTOS_DEST_DATED       = "into destination with dated folder"
   COPY_PHOTOS_DEST_NAMED       = "into destination with name"
   COPY_PHOTOS_DEST_DATED_NAMED = "into destination with dated folder and name"
-
+  
   def self.label_to_spec(label)
     case label
     when COPY_PHOTOS_DEST_DATED       then "dest_with_dated_folder"
@@ -581,7 +595,7 @@ module JpegSizeEstimationLogic
   protected
   def handle_jpeg_size_estimation(recalc=true)
     return unless @ui
-
+    
     have_jpeg_size_limits = !! @ui.instance_variable_get("@jpeg_limit_size_check")
 
     if have_jpeg_size_limits && @ui.jpeg_limit_size_check.checked?
@@ -592,7 +606,7 @@ module JpegSizeEstimationLogic
   end
 
   def handle_limit_size_update
-    @ui.jpeg_size_static.set_text "Min. Quality:#{@ui.jpeg_minqlty_slider.getpos}"
+    @ui.jpeg_size_static.set_text "Min. Quality:#{@ui.jpeg_minqlty_slider.getpos}"    
   end
 
   def handle_jpeg_dynamic_size_estimation(recalc)
@@ -602,7 +616,7 @@ module JpegSizeEstimationLogic
     end
 
     if recalc
-      acct = self.respond_to?(:current_account_settings) ? current_account_settings : cur_account_settings
+      acct = self.respond_to?(:current_account_settings, true) ? current_account_settings : cur_account_settings
       if acct
         spec = build_upload_spec(acct, @ui)
         spec = spec.__to_hash__   # can't sent AutoStruct across bridge, but can send plain Hash
@@ -620,7 +634,7 @@ module JpegSizeEstimationLogic
       fmt_bytesize(size)
     end
 
-    @ui.jpeg_size_static.set_text "#{@ui.jpeg_qlty100_slider.getpos}:#{size_str}"
+    @ui.jpeg_size_static.set_text "#{@ui.jpeg_qlty100_slider.getpos}:#{size_str}"    
   end
 end
 
@@ -701,24 +715,24 @@ class CrossThreadMessageDispatcher
     @qfactory = queue_factory_proc
     @msgq = @qfactory.call
   end
-
+  
   def wrap_obj(obj)
     CrossThreadMessageProxy.new(self, obj, @qfactory.call)
   end
-
+  
   def exec_messages
     until @msgq.empty?
       msg = @msgq.pop
       execmsg(msg)
     end
   end
-
+  
   def enqueue_message(msg)
     @msgq.push(msg)
   end
-
+  
   protected
-
+  
   def execmsg(msg)
     res = nil
     begin
@@ -743,7 +757,7 @@ class BackgroundDataFetchWorkerManager
   def exec_messages
     @dispatcher.exec_messages
   end
-
+  
   def terminate
     @done = true
     if @worker_th
@@ -758,13 +772,13 @@ class BackgroundDataFetchWorkerManager
       @dispatcher = nil
     end
   end
-
+  
   protected
-
+  
   def wrap_objs(objs)
     objs.map {|o| @dispatcher.wrap_obj(o)}
   end
-
+  
   def run_worker_task
     until @done
       begin
@@ -794,7 +808,7 @@ module TemplateUnitTestAsserts
   def assert(val, msg="assert failed")
     val or raise("#{msg}: #{val.inspect} is not true")
   end
-
+  
   def assert_equal(expected, actual, msg="assert failed")
     (expected == actual) or raise("#{msg}: expected #{expected.inspect}, got #{actual.inspect}")
   end
@@ -820,14 +834,16 @@ class OAuthConnectionSettingsUI
   end
 
   def create_controls(dlg)
+    
+    
     create_control(:setting_name_static,      Static,       dlg, :label=>"Your Accounts:")
     create_control(:setting_name_combo,       ComboBox,     dlg, :editable=>false, :sorted=>true, :persist=>false)
+    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on adding an account: If you have an active #{TEMPLATE_DISPLAY_NAME} session in your browser, #{TEMPLATE_DISPLAY_NAME} will authorize Photo Mechanic for the account associated with that session. Otherwise, #{TEMPLATE_DISPLAY_NAME} will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code below and press the Verify Code button. The account name will be determined automatically from your #{TEMPLATE_DISPLAY_NAME} user name.")
     create_control(:setting_delete_button,    Button,       dlg, :label=>"Delete Account")
     create_control(:setting_add_button,       Button,       dlg, :label=>"Add/Replace Account")
-    create_control(:add_account_instructions, Static,       dlg, :label=>"Note on adding an account: If you have an active #{TEMPLATE_DISPLAY_NAME} session in your browser, #{TEMPLATE_DISPLAY_NAME} will authorize Photo Mechanic for the account associated with that session. Otherwise, #{TEMPLATE_DISPLAY_NAME} will prompt you to login.\nAfter authorizing Photo Mechanic, please enter the verification code below and press the Verify Code button. The account name will be determined automatically from your #{TEMPLATE_DISPLAY_NAME} user name.")
-    create_control(:code_group_box,           GroupBox,    dlg, :label=>"Verification code:")
-    create_control(:code_edit,                EditControl, dlg, :value=>"Enter verification code", :persist=>false, :enabled=>false)
-    create_control(:code_verify_button,       Button,      dlg, :label=>"Verify Code", :enabled=>false)
+    create_control(:code_group_box,           GroupBox,     dlg, :label=>"Verification code:")
+    create_control(:code_edit,                EditControl,  dlg, :value=>"Enter verification code", :persist=>false, :enabled=>false)
+    create_control(:code_verify_button,       Button,       dlg, :label=>"Verify Code", :enabled=>false)
   end
 
   def layout_controls(c)
@@ -876,7 +892,8 @@ class OAuthConnectionSettingsUI
     setting_delete_button.enable(true)
     setting_add_button.enable(true)
   end
-end
+end # OAuthConnectionSettingsUI
+
 
 class OAuthConnectionSettings
   DLG_SETTINGS_KEY = :connection_settings_dialog
@@ -884,7 +901,7 @@ class OAuthConnectionSettings
   def self.template_display_name
     TEMPLATE_DISPLAY_NAME
   end
-
+  
   def self.template_description
     "#{TEMPLATE_DISPLAY_NAME} Connection Settings"
   end
@@ -904,7 +921,7 @@ class OAuthConnectionSettings
   end
 
   class SettingsData
-    attr_accessor :access_token, :access_token_secret
+    attr_accessor :account_name, :access_token, :access_token_secret
 
     def initialize(name, token, token_secret)
       @account_name = name
@@ -1010,14 +1027,19 @@ class OAuthConnectionSettings
 
   def handle_add_click
     begin
+dbgprint "handle_add_click"
       client.reset!
+dbgprint "client.fetch_request_token"
       client.fetch_request_token
+dbgprint "client.launch_application_authorization_in_browser"
       client.launch_application_authorization_in_browser
+dbgprint "@ui.enable_code_entry"
       @ui.enable_code_entry
+dbgprint "@prev_selected_settings_name = nil"
       @prev_selected_settings_name = nil
     rescue StandardError => e
       msg = "Server error: #{e}"
-      dbglog msg
+      dbglog "#{self.class.name}:#{__method__}: #{msg}"
       Dlg::MessageBox.ok(msg, Dlg::MessageBox::MB_ICONEXCLAMATION)
     end
   end
@@ -1040,18 +1062,22 @@ class OAuthConnectionSettings
     Dlg::MessageBox.ok("Please enter a non-blank code.", Dlg::MessageBox::MB_ICONEXCLAMATION) and return if code.empty?
 
     begin
-      result = client.get_access_token(code)
-      @settings[client.name]  = SettingsData.new(client.name, client.access_token, client.access_token_secret)
+      result = client.get_access_token(code, @ui)
+      @settings[client.name] = SettingsData.new(client.name, client.access_token, client.access_token_secret)
       add_account_to_dropdown(client.name)
       @ui.disable_code_entry("Verified #{client.name}")
     rescue StandardError => e
       msg = "Failed to verify code"
       @ui.disable_code_entry(msg)
-      dbglog "#{msg}: #{e}"
+      dbglog "#{self.class.name}:#{__method__}: #{msg}: #{e} - #{e.backtrace}"
       # Note: A failed verification requires a complete new round of authorization!
       msg = "Error: #{msg}, please retry to add the account."
       Dlg::MessageBox.ok(msg, Dlg::MessageBox::MB_ICONEXCLAMATION)
     end
+  end
+
+  def handle_new_button
+    # TODO: Clear connection name and settings
   end
 
   protected
@@ -1090,14 +1116,15 @@ class OAuthConnectionSettings
   def clear_settings
     @ui.setting_name_combo.set_text ""
   end
-end
+end # OAuthConnectionSettings
+
 
 class OAuthFileUploaderUI
   include PM::Dlg
   include AutoAccessor
   include CreateControlHelper
   include ImageProcessingControlsCreation
-  include RenamingControlsCreation
+  include RenamingControlsCreation 
   include OperationsControlsCreation
   include ImageProcessingControlsLayout
 
@@ -1166,8 +1193,7 @@ class OAuthFileUploaderUI
   def layout_controls(container)
     sh, eh = 20, 24
 
-    container.inset(15, 5, -5, -5)
-
+    container.inset(15, 5, -15, -5)
     container.layout_with_contents(@dest_account_group_box, 0, 0, -1, -1) do |c|
       c.set_prev_right_pad(5).inset(10,20,-10,-5).mark_base
 
@@ -1181,7 +1207,7 @@ class OAuthFileUploaderUI
     container.pad_down(5).mark_base
   end
 
-  def layout_processing_controls(container)
+  def layout_processing_controls(container)      
     sh, eh = 20, 24
 
     container.layout_with_contents(@transmit_group_box, 0, container.base, "50%-5", -1) do |c|
@@ -1265,7 +1291,8 @@ class OAuthFileUploaderUI
     end
     src
   end
-end
+end # OAuthFileUploaderUI
+
 
 class OAuthBackgroundDataFetchWorker
   def initialize(bridge, dlg)
@@ -1279,7 +1306,8 @@ class OAuthBackgroundDataFetchWorker
 
     @dlg.account_parameters_dirty = false
   end
-end
+end # OAuthBackgroundDataFetchWorker
+
 
 class OAuthFileUploader
   include ImageProcessingControlsLogic
@@ -1292,13 +1320,14 @@ class OAuthFileUploader
 
   attr_accessor :account_parameters_dirty
   attr_reader :num_files, :ui
+  attr_accessor :cur_photosets
 
   DLG_SETTINGS_KEY = :upload_dialog
 
   def self.template_display_name
     TEMPLATE_DISPLAY_NAME
   end
-
+  
   def self.template_description
     "Upload images to #{TEMPLATE_DISPLAY_NAME}"
   end
@@ -1327,6 +1356,7 @@ class OAuthFileUploader
     @last_status_txt = nil
     @account_parameters_dirty = false
     @data_fetch_worker = nil
+    @cur_photosets = nil
   end
 
   def upload_files(global_spec, progress_dialog)
@@ -1347,6 +1377,8 @@ class OAuthFileUploader
     @ui.send_original_radio.on_click { adjust_controls }
     @ui.send_jpeg_radio.on_click { adjust_controls }
     @ui.dest_account_combo.on_sel_change { account_parameters_changed }
+
+    @file_upload_dialog = dlg.parent_dlg
 
     add_jpeg_controls_event_hooks
     add_image_processing_controls_event_hooks
@@ -1417,6 +1449,29 @@ class OAuthFileUploader
       @dlg_status_bridge.set_text(txt)
       @last_status_txt = txt
     end
+  end
+
+  def disable_send_button
+    @file_upload_dialog.disable_send_button
+  end
+
+  def enable_send_button
+    @file_upload_dialog.enable_send_button
+  end
+
+  def reload_column_browser
+    return unless @ui.folder_browser_column_browser.instantiated?
+    @ui.folder_browser_column_browser.reload
+  end
+
+  def load_column_zero
+    return unless @ui.folder_browser_column_browser.instantiated?
+    @ui.folder_browser_column_browser.load_column_zero
+  end
+
+  def set_browser_theme
+    return unless @ui.folder_browser_column_browser.instantiated?
+    @ui.folder_browser_column_browser.set_ui_theme(@bridge.get_ui_theme())
   end
 
   def update_account_combo_list
@@ -1551,7 +1606,7 @@ class OAuthFileUploader
     spec.upload_processing_type = ui.send_original_radio.checked? ? processing_orgs_type : "save_as_jpeg"
     spec.send_incompatible_originals_as = "JPEG"
     spec.send_wav_files = ui.valid_file_types.empty? || ui.valid_file_types.include?("WAV")
-
+    
     build_jpeg_spec(spec, ui)
     build_image_processing_spec(spec, ui)
     build_operations_spec(spec, ui)
@@ -1602,7 +1657,8 @@ class OAuthFileUploader
       set_status_text("You are ready to upload your " + (@num_files > 1 ? "#{@num_files} images." : "image."))
     end
   end
-end
+end # OAuthFileUploader
+
 
 class OAuthConnection
   attr_reader :api_key, :api_secret
@@ -1614,6 +1670,7 @@ class OAuthConnection
     query_hash.each_pair do |key, value|
       qstr += (qstr.empty? ? "?" : "&")
       qstr += URI.escape(key.to_s) + "=" + URI.escape(value.to_s).gsub(/[&=]/) { |s| '%' + ("%02X" % s[0].to_s) }
+      #dbglog "qstr= #{qstr.inspect}"
     end
     qstr
   end
@@ -1625,11 +1682,10 @@ class OAuthConnection
     response
   end
 
-  def log_server_request(method, path, params, headers)
+  def log_server_request(method, path, headers)
     if PM::Logging.query_logging_active_for?("HTTP_REQUEST_LOGGING")
-      params_s = (params.map { |k, v| "#{k}: #{v}" }).join(", ")
       headers_s = (headers.map { |k, v| "#{k}: #{v}" }).join(", ")
-      dbglog "http/request: #{method.to_s.upcase} #{path}, \{#{params_s}\} \{#{headers_s}\}"
+      dbglog "http/request: #{method.to_s.upcase} #{path}, {#{headers_s}}"
     end
   end
 
@@ -1695,21 +1751,24 @@ class OAuthConnection
     (h = @http) and h.abort_transfer
   end
 
-  def get(path, params = {})
-    headers = request_headers(:get, @base_url + path, params, {})
-    request(:get, path, params, headers)
+  def get(path)
+    dbglog "#{self.class.name}:#{__method__}: #{@base_url + path}"
+    headers = request_headers(:get, @base_url + path, {})
+    request(:get, path, "", headers)
   end
 
-  def put(path, params = {}, upload_headers = {})
-    headers = request_headers(:put, @base_url + path, params, {})
+  def put(path, data = "", upload_headers = {})
+    dbglog "#{self.class.name}:#{__method__}: #{@base_url + path}"
+    headers = request_headers(:put, @base_url + path, {})
     headers.merge!(upload_headers)
-    request(:put, path, params, headers)
+    request(:put, path, data, headers)
   end
 
-  def post(path, params = {}, upload_headers = {})
-    headers = request_headers(:post, @base_url + path, params, {})
+  def post(path, data = "", upload_headers = {}, signature_params = {})
+    dbglog "#{self.class.name}:#{__method__}: #{@base_url + path}"
+    headers = request_headers(:post, @base_url + path, signature_params)
     headers.merge!(upload_headers)
-    request(:post, path, params, headers)
+    request(:post, path, data, headers)
   end
 
   def process_server_response_hash(err)
@@ -1731,7 +1790,7 @@ class OAuthConnection
         err = result['error'] || result['errors']
       rescue
         # If result not in JSON, try xml <error></error> pairs
-        err = []
+        err = []       
         response.body.scan(/<error>((?!<\/error>).*)<\/error>/m){ | e | err.push e }
       end
       begin
@@ -1759,10 +1818,10 @@ class OAuthConnection
       err ||= response.body
       err = err.strip
       err = "Communication error #{response.code}" if err.empty? # Last resort if no body
-      dbglog "Server error: #{err}"
+      dbglog "#{self.class.name}:#{__method__}: Server error: #{response.code} - #{err}"
       raise err
     end
-  end
+  end 
 
   def set_tokens(token, token_secret)
     @access_token = token
@@ -1774,7 +1833,7 @@ class OAuthConnection
     response = post(path)
     require_server_success_response(response)
     result = CGI::parse(response.body)
-    set_tokens(result['oauth_token'].to_s, result['oauth_token_secret'].to_s)
+    set_tokens(result['oauth_token'].join, result['oauth_token_secret'].join)
     raise "Unable to verify code" unless !@verifier.nil? || authenticated?
     result
   end
@@ -1784,19 +1843,6 @@ class OAuthConnection
   end
 
   protected
-
-  def request_headers(method, url, params = {}, signature_params = params)
-    {'Authorization' => auth_header(method, url, params, signature_params)}
-  end
-
-  def auth_header(method, url, params = {}, signature_params = params)
-    oauth_auth_header(method, url, signature_params).to_s
-  end
-
-  def oauth_auth_header(method, uri, params = {})
-    uri = URI.parse(uri)
-    SimpleOAuth::Header.new(method, uri, params, credentials)
-  end
 
   def credentials
     {
@@ -1809,18 +1855,32 @@ class OAuthConnection
     }
   end
 
-  def request(method, path, params = {}, headers = {})
+  def request_headers(method, url, signature_params)
+    {'Authorization' => auth_header(method, url, signature_params)}
+  end
+
+  def auth_header(method, url, signature_params)
+    oauth_auth_header(method, url, signature_params).to_s
+  end
+
+  def oauth_auth_header(method, uri, signature_params)
+    uri = URI.parse(uri)
+    SimpleOAuth::Header.new(method, uri, signature_params, credentials)
+  end
+
+  def request(method, path, data, headers = {})
     url = @base_url + path
     uri = URI.parse(url)
     ensure_open_http(uri.host, uri.port)
-    log_server_request(method, path, params, headers)
+    log_server_request(method, path, headers)
     if method == :get
-      log_server_response(method, @http.send(method.to_sym, uri.request_uri, headers))
+      log_server_response(method, @http.send(str_to_sym(method), uri.request_uri, headers))
     else
-      log_server_response(method, @http.send(method.to_sym, uri.request_uri, params, headers))
+      log_server_response(method, @http.send(str_to_sym(method), uri.request_uri, data, headers))
     end
   end
-end
+end # OAuthConnection
+
 
 class OAuthClient
   attr_reader :name
@@ -1830,7 +1890,18 @@ class OAuthClient
   end
 
   def authorization_url
-    "#{connection.base_url}oauth/authorize?oauth_token=#{connection.access_token}"
+    if smugmug_api?
+      qstr = connection.create_query_string_from_hash( # https://api.smugmug.com/api/v2/doc/tutorial/authorization.html
+      { "Access"      => "Full",
+        "Permissions" => "Modify",
+        "oauth_token" => connection.access_token
+      })
+      url = "#{connection.base_url}oauth/1.0a/authorize#{qstr}"
+    else
+      url = "#{connection.base_url}oauth/authorize?oauth_token=#{connection.access_token}"
+    end
+
+    url
   end
 
   def initialize(bridge, options = {})
@@ -1851,7 +1922,11 @@ class OAuthClient
   end
 
   def fetch_request_token
-    connection.set_tokens_from_post('oauth/request_token')
+    if smugmug_api?
+      connection.set_tokens_from_post('oauth/1.0a/getRequestToken')
+    else
+      connection.set_tokens_from_post('oauth/request_token')
+    end
   end
 
   def launch_application_authorization_in_browser
@@ -1859,8 +1934,12 @@ class OAuthClient
     @bridge.launch_url(authorization_url)
   end
 
-  def get_access_token(verifier)
-    result = connection.set_tokens_from_post('oauth/access_token', verifier)
+  def get_access_token(verifier, ui)
+    if smugmug_api?
+      result = connection.set_tokens_from_post('oauth/1.0a/getAccessToken', verifier)
+    else
+      result = connection.set_tokens_from_post('oauth/access_token', verifier)
+    end
     @name = get_account_name(result)
     [ connection.access_token, connection.access_token_secret, @name ]
   end
@@ -1882,13 +1961,19 @@ class OAuthClient
     connection.set_tokens(token, token_secret)
     @name = name
   end
-end
+
+  def smugmug_api?
+    false
+  end
+end # OAuthClient
+
 
 class OAuth2Client < OAuthClient
   def fetch_request_token
     # Empty step for OAuth2!
   end
-end
+end # OAuth2Client
+
 
 class OAuthUploadProtocol
   def connection
@@ -1904,26 +1989,28 @@ class OAuthUploadProtocol
   end
 
   def reset_transfer_status
-    connection.reset_transfer_status
+    defined?(connection_image_upload) ? connection_image_upload.reset_transfer_status : connection.reset_transfer_status
   end
 
   # return [bytes_to_write, bytes_written]
   def poll_transfer_status
-    connection.poll_transfer_status
+    defined?(connection_image_upload) ? connection_image_upload.poll_transfer_status : connection.poll_transfer_status
   end
 
   def abort_transfer
-    connection.abort_transfer
+    defined?(connection_image_upload) ? connection_image_upload.abort_transfer : connection.abort_transfer
   end
 
   def reset!
-    connection.reset!
+    defined?(connection_image_upload) ? connection_image_upload.reset! : connection.reset!
   end
 
   def image_upload(local_filepath, remote_filename, is_retry, spec)
     @bridge.set_status_message "Uploading via secure connection..."
 
     connection.set_tokens(spec.token, spec.token_secret)
+
+    connection_image_upload.set_tokens(spec.token, spec.token_secret) if defined?(connection_image_upload) # Flickr
 
     upload(local_filepath, remote_filename, spec)
 
@@ -1952,4 +2039,5 @@ class OAuthUploadProtocol
   def authenticate_from_settings(settings = {})
     connection.set_tokens_from_settings(settings)
   end
-end
+end # OAuthUploadProtocol
+
