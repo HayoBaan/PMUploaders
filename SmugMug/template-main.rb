@@ -16,8 +16,9 @@ BASE_URL        = "https://api.smugmug.com/services/"
 CALLBACK_URL    = "https://auth.camerabits.com/oauth/verifier/SmugMug"
 API_V2_HOST     = "https://api.smugmug.com/api/v2/"
 UPLOAD_HOST     = "https://upload.smugmug.com/"
-API_KEY         = "cPvZR25P5pJB9XJ2DqwzCg89rsCGX3n5"
-SHARED_SECRET   = "TX54ZkcTHHDjZMtS25zcxqqcXcDJT6fTHkg45JVDx3XnkWbj9FTXqpcddHxM7SKr"
+
+API_KEY     = __OAUTH_API_KEY__
+API_SECRET  = __OAUTH_API_SECRET__
 
 STATIC_TEXT_HEIGHT = 20
 EDIT_FIELD_HEIGHT = 24
@@ -133,13 +134,27 @@ class SmugMugCreateDialog < Dlg::DynModalChildDialog
     dlg.set_window_position(50, 100, 500, 200)
     title = "Create New #{@type}"
     dlg.set_window_title(title)
+
+    album_templates = ["None"]
+    if @type == "Gallery"
+      begin
+        connection.get_album_templates.each do |template|
+          album_templates << template.name
+        end
+      rescue StandardError => ex
+        dbglog ex.message
+        dbglog ex.backtrace
+      end
+    end
     
     parent_dlg = dlg
     create_control(:descrip_gallery_static, Static,         parent_dlg, :label=>"Create new #{TEMPLATE_DISPLAY_NAME} #{@type}:", :align=>"left")
-    create_control(:privacy_static,         Static,         parent_dlg, :label=>"Privacy:", :align=>"left")
-    create_control(:privacy_combo,          ComboBox,       parent_dlg, :items=>["Private", "Unlisted", "Public"], :selected=>"Private")
-    create_control(:new_item_static,        Static,         parent_dlg, :label=>"New #{@type} name:", :align=>"left")
+    create_control(:new_item_static,        Static,         parent_dlg, :label=>"Name:", :align=>"right")
     create_control(:new_item_edit,          EditControl,    parent_dlg, :value=>"", :persist=>false)
+    create_control(:template_static,        Static,         parent_dlg, :label=>"Gallery Template:", :align=>"right")
+    create_control(:templates_combo,        ComboBox,       parent_dlg, :items=>album_templates)
+    create_control(:privacy_static,         Static,         parent_dlg, :label=>"Privacy:", :align=>"right")
+    create_control(:privacy_combo,          ComboBox,       parent_dlg, :items=>["Private", "Unlisted", "Public"], :selected=>"Private")
     create_control(:create_button,          Button,         parent_dlg, :label=>"Create")
     create_control(:cancel_button,          Button,         parent_dlg, :label=>"Cancel")
 
@@ -160,6 +175,7 @@ class SmugMugCreateDialog < Dlg::DynModalChildDialog
     sh = 20
     eh = 24
     bh = 28
+    rp = RIGHT_PAD
     dlg = self
     client_width, client_height = dlg.get_clientrect_size
     c = LayoutContainer.new(0, 0, client_width, client_height)
@@ -167,12 +183,24 @@ class SmugMugCreateDialog < Dlg::DynModalChildDialog
     c << @descrip_gallery_static.layout(0, c.base, -1, sh)
     c.pad_down(20).mark_base
     
-    w1 = 150
-    c << @privacy_static.layout(0, c.base, w1, sh)
-      c << @new_item_static.layout(c.prev_right + 20, c.base, -1, sh)
-    c.pad_down(0).mark_base
-    c << @privacy_combo.layout(0, c.base, w1, eh)
-      c << @new_item_edit.layout(c.prev_right + 20, c.base, -1, eh)
+    w1 = 120
+    c.layout_subgroup(0, c.base, "100%-5", -1) do |cl|
+      cl.set_prev_right_pad(rp)
+      cl << @new_item_static.layout(0, cl.base+3, w1, sh)
+        cl << @new_item_edit.layout(cl.prev_right, cl.base, "100%", sh)
+      cl.pad_down(5).mark_base
+      
+      if @type == "Gallery"
+        cl << @template_static.layout(0, cl.base+3, w1, sh)
+          cl << @templates_combo.layout(cl.prev_right, cl.base, "100%", eh)
+        cl.pad_down(5).mark_base
+      end
+
+      cl << @privacy_static.layout(0, cl.base+3, w1, sh)
+        cl << @privacy_combo.layout(cl.prev_right, cl.base, "50%", eh)
+      cl.pad_down(5).mark_base.size_to_base
+    end
+
     c.pad_down(5).mark_base
     
     bw = 80
@@ -190,6 +218,7 @@ class SmugMugCreateDialog < Dlg::DynModalChildDialog
     name = @new_item_edit.get_text.strip
     privacy = @privacy_combo.get_selected_item
     parent_node_id = @node_id
+    selected_template = @templates_combo.get_selected_item
 
     if name.empty?
       Dlg::MessageBox.ok("Please enter a non-blank #{@type} name.", Dlg::MessageBox::MB_ICONEXCLAMATION)
@@ -197,8 +226,8 @@ class SmugMugCreateDialog < Dlg::DynModalChildDialog
     end
 
     begin
-      if (@type == "Gallery")
-        connection.create_gallery(privacy, name, parent_node_id)
+      if @type == "Gallery"
+        connection.create_gallery(privacy, name, parent_node_id, selected_template)
       else
         connection.create_folder(privacy, name, parent_node_id)
       end
@@ -370,12 +399,11 @@ class SmugMugFileUploader < OAuthFileUploader
     reload_column_browser
   end
 
-  def create_dialog(is_gallery)
+  def create_dialog(gallery)
     return unless column_browser_instantiated?
-    type = is_gallery ? "Gallery" : "Folder"
+    type = gallery ? "Gallery" : "Folder"
     begin
-      gal_selected = @ui.folder_browser_column_browser.gallery_selected?
-      raise("Unable to create a new #{type} in Gallery. Please choose a Folder.") if gal_selected
+      raise("Unable to create a new #{type} in Gallery. Please choose a Folder.") if is_gallery
 
       parent_node_id = node_id
 
@@ -452,9 +480,10 @@ end # SmugMugFileUploader
 
 class SmugMugConnection < OAuthConnection
   def initialize(pm_api_bridge)
+    @bridge = pm_api_bridge
     @base_url = BASE_URL
     @api_key = API_KEY
-    @api_secret = SHARED_SECRET
+    @api_secret = API_SECRET
     @callback_url = CALLBACK_URL
     super
   end
@@ -479,7 +508,9 @@ class SmugMugAuthClient < OAuthClient
   end
 
   def query_authuser(result)
-    connection_client.set_tokens(result['oauth_token'], result['oauth_token_secret'])
+    oauth_token = result['oauth_token'].kind_of?(Array) ? result['oauth_token'].join : result['oauth_token']
+    oauth_token_secret = result['oauth_token_secret'].kind_of?(Array) ? result['oauth_token_secret'].join : result['oauth_token_secret']
+    connection_client.set_tokens(oauth_token, oauth_token_secret)
     response = connection_client.get("!authuser?_accept=application/json")
     connection_client.require_server_success_response(response)
     response
@@ -568,7 +599,8 @@ class SmugMugQueryServerResponse
 end # SmugMugQueryServerResponse
 
 
-SmugMugStruct = Struct.new(:type, :name, :node_id, :url_path, :url_name, :has_children)
+SmugMugNode = Struct.new(:type, :name, :node_id, :url_path, :url_name, :has_children)
+SmugMugTemplate = Struct.new(:name, :uri)
 
 
 class SmugMugAPI
@@ -612,8 +644,8 @@ class SmugMugAPI
     parse_node(query_folder_children(node_id))
   end
 
-  def create_gallery(privacy, name, parent_node_id)
-    create_item(true, privacy, name, parent_node_id)
+  def create_gallery(privacy, name, parent_node_id, selected_template)
+    create_item(true, privacy, name, parent_node_id, selected_template)
   end
 
   def create_folder(privacy, name, parent_node_id)
@@ -621,29 +653,63 @@ class SmugMugAPI
   end
 
   def get_album_key(node_id)
-    parse_album_data(query_album(node_id))
+    parse_album_data(query_node(node_id))
+  end
+
+  def get_album_templates
+    parse_album_templates(query_templates)
   end
 
   protected
 
-  def create_item(is_gallery, privacy, name, parent_node_id)
+  def create_item(is_gallery, privacy, name, parent_node_id, selected_template="None")
     raise("Folder NodeId is missing!") if (parent_node_id.nil? || parent_node_id.strip.empty?)
     name = name.gsub('/', '').gsub('\\', '')
     raise("Name is emtpy!") if name.empty?
     url_name = fixed_url_name(name)
+    url_path = nil
+    album_template_uri = nil
 
     type = is_gallery ? "Album" : "Folder"
-    
+  
+    if is_gallery && selected_template != "None" # use Quick Settings template
+      begin
+        # get parent node UrlPath
+        url_path = query_node(parent_node_id)['Response']['Node']['UrlPath'].sub(/^\//, "").sub(/\/$/, "")
+        raise if (url_path.nil? || url_path.strip.empty?)
+      rescue StandardError => ex
+        dbglog ex.message
+        dbglog ex.backtrace
+        raise "No parent folder UrlPath."
+      end
+
+      get_album_templates.each do |template|
+        album_template_uri = template.uri if template.name == selected_template
+      end
+
+      path = "folder/user/#{acct_name}/#{url_path}!albumfromalbumtemplate?_accept=application/json"
+      folder_uri = "/api/#{SMUG_VER}/folder/user/#{acct_name}/#{url_path}!albums"
+    else
+      path = "node/#{parent_node_id}!children?_accept=application/json"
+    end
+
     mime = MimeMultipart.new
-    mime.add_field("Name", name)
+    
+    if album_template_uri.nil?
+      mime.add_field("Name", name)
+      mime.add_field("Type", type)
+    else # create from template
+      mime.add_field("Title", name)
+      mime.add_field("AlbumTemplateUri", album_template_uri)
+      mime.add_field("FolderUri", folder_uri)
+    end
     mime.add_field("UrlName", url_name) # first character must be uppercased, no more than 32 characters long, and you should represent spaces with a hyphen
     mime.add_field("Privacy", privacy) # Private, Unlisted, or Public - album will always be set to private if folder is private
-    mime.add_field("Type", type)
-
+    
     data, headers = mime.generate_data_and_headers
 
-    response = connection.post("node/#{parent_node_id}!children?_accept=application/json", data, headers)
-    #connection.require_server_success_response(response)
+    response = connection.post(path, data, headers)
+    #connection.require_server_success_response(response) 
     response_body = response.body
     SmugMugCreateItemResponse.new(response_body)
   end
@@ -665,8 +731,15 @@ class SmugMugAPI
     query_server(url)
   end
 
-  def query_album(node_id)
+  def query_node(node_id)
     url = "node/#{node_id}?_accept=application/json"
+    query_server(url)
+  end
+
+  def query_templates
+    raise("acct_name not set!") unless acct_name
+    uri_safe_name = URI.encode(acct_name)
+    url = "user/#{uri_safe_name}!albumtemplates?_accept=application/json"
     query_server(url)
   end
 
@@ -682,6 +755,16 @@ class SmugMugAPI
     uri.split("/").last
   end
 
+  def parse_album_templates(response_body_json)
+    list = []
+    response_body_json['Response']['AlbumTemplate'].each do |value|
+      name = value['Name']
+      uri = value['Uri']
+      list << SmugMugTemplate.new(name, uri)
+    end unless response_body_json['Response']['AlbumTemplate'].nil?
+    list
+  end
+
   def parse_node(node_json)
     list = []
     node_json['Response']['Node'].each_with_index do |value, index|
@@ -692,7 +775,7 @@ class SmugMugAPI
       url_name = value['UrlName']
       has_children = value['HasChildren'] # is bool
       validate_response(type, name, node_id, url_path, url_name, has_children)
-      list << SmugMugStruct.new(type, name, node_id, url_path, url_name, has_children)
+      list << SmugMugNode.new(type, name, node_id, url_path, url_name, has_children)
     end unless node_json['Response']['Node'].nil?
     list
   end

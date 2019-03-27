@@ -2,13 +2,16 @@
 # coding: utf-8
 ##############################################################################
 #
-# Copyright (c) 2014 Camera Bits, Inc.  All rights reserved.
+# Copyright (c) 2017 Camera Bits, Inc.  All rights reserved.
 #
 # Developed by Hayo Baan
 #
 ##############################################################################
 
 TEMPLATE_DISPLAY_NAME = "Facebook"
+
+API_KEY     = __OAUTH_API_KEY__
+API_SECRET  = __OAUTH_API_SECRET__
 
 ##############################################################################
 
@@ -201,6 +204,11 @@ class FacebookFileUploader < OAuthFileUploader
   include PM::FileUploaderTemplate  # This also registers the class as File Uploader
   include FacebookPrivacy
 
+  def initialize(pm_api_bridge, num_files, dlg_status_bridge, conn_settings_serializer)
+    @bridge = pm_api_bridge
+    super(pm_api_bridge, num_files, dlg_status_bridge, conn_settings_serializer)
+  end
+
   def self.file_uploader_ui_class
     FacebookFileUploaderUI
   end
@@ -365,16 +373,30 @@ end
 
 class FacebookConnection < OAuthConnection
   def initialize(pm_api_bridge)
+#https://pm-oauth.herokuapp.com/oauth/verifier/facebook?code=AQAee2F1x4vhH9A8J_PQLS7f_frXqWyWiTtaF5uX52UfoDRoIXIztosbGoc64qE0_49erZBXfJJ-cj1F5y4pTI18o-jDKyQkfZmZGbwIf897pSEqR9leHqtkXmahX2tZbQMoGwBNKOVXbg9DNy3JEhBkGPYBGszzBJWohgTeASqYYsOQpkS02rFAyjI0vZkLTKWjlo6X1tbw4PlAnXX6lcI3svsY0xW4LS27GmYy5AjAm7WLlp2jeyIHSqoHbKna7QM44imexe5mx_Kq7jvDPj8OZpjL-xsY9alyRkad8-nGtulqOllQqpYRg3xl-3U4t7g#_=_
     @base_url = 'https://graph.facebook.com/'
-    @api_key = '847826438602773'
-    @api_secret = 'N/A' # Not required!
-    @callback_url = 'https://auth.camerabits.com/oauth/verifier/Facebook'
+    @api_key = API_KEY
+    @api_secret = API_SECRET
+    @callback_url = 'https://auth.camerabits.com/oauth/verifier/facebook'
+    @bridge = pm_api_bridge
     super
   end
 
-  def set_tokens_from_post(path, verifier=nil)
-    # Facebook's token is not set from the post, but directly retrieved from as verification code
-    raise "Program error: set_tokens_from_post called for #{TEMPLATE_DISPLAY_NAME}"
+  def set_tokens_from_post(url, code)
+    uri = URI.parse("https://auth.camerabits.com/authorizations/facebook?code=#{code}")
+    http = @bridge.open_http_connection(uri.host, uri.port)
+    http.use_ssl = true
+    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+    request = Net::HTTP::Get.new(uri.path + '?' + uri.query)
+    response = http.request(request)
+    require_server_success_response(response)
+    result = JSON::parse(response.body)
+    http.finish if http.started?
+    # We only get an access token with OAuth2 so we set the
+    # access_token_secret to N/A so authenticated checks don't break
+    set_tokens(result['access_token'].to_s, "N/A")
+    raise "Unable to verify code" unless !@verifier.nil? || authenticated?
+    result
   end
 
   def get_permissions
@@ -415,24 +437,24 @@ class FacebookConnection < OAuthConnection
     path
   end
 
-  def get(path, params = {})
+  def get(path)
     path = add_authentication(path)
-    super(path, params)
+    super(path)
   end
 
-  def put(path, params = {}, upload_headers = {})
+  def put(path, data = "", upload_headers = {})
     path = add_authentication(path)
-    super(path, params, upload_headers)
+    super(path, data, upload_headers)
   end
 
-  def post(path, params = {}, upload_headers = {})
+  def post(path, data = "", upload_headers = {})
     path = add_authentication(path)
-    super(path, params, upload_headers)
+    super(path, data, upload_headers)
   end
 
   protected
 
-  def request_headers(method, url, params = {}, signature_params = params)
+  def request_headers(method, url, signature_params = {})
     # Facebook doesn't use headers for authentication
     {}
   end
@@ -446,7 +468,7 @@ class FacebookClient < OAuth2Client
   def authorization_url
     "https://www.facebook.com/dialog/oauth" +
       connection.create_query_string_from_hash({
-                                                 "response_type" => "token",
+                                                 "response_type" => "code",
                                                  "client_id" => connection.api_key,
                                                  "redirect_uri" => connection.callback_url,
                                                  "scope" => "public_profile,user_photos,publish_actions"
@@ -460,10 +482,9 @@ class FacebookClient < OAuth2Client
     result['name']
   end
 
-  def get_access_token(verifier)
-    # Verifier is actually the user access_token...
-    connection.set_tokens(verifier, "N/A")
-    @name = get_account_name(verifier)
+  def get_access_token(code)
+    result = connection.set_tokens_from_post('', code)
+    @name = get_account_name(connection.access_token)
     [ connection.access_token, connection.access_token_secret, @name ]
   end
 end

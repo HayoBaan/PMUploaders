@@ -84,8 +84,8 @@ module OperationsControlsCreation
   def create_operations_controls(parent_dlg)
     dlg = parent_dlg  
     create_control(:operations_group_box,       GroupBox,       dlg, :label=>"Operations:")
-    create_control(:apply_iptc_check,           CheckBox,       dlg, :label=>"Apply IPTC stationery")
-    create_control(:stationery_pad_btn,         StationeryPadButton, dlg, :label=>"IPTC Stationery Pad...")
+    create_control(:apply_iptc_check,           CheckBox,       dlg, :label=>"Apply Metadata (IPTC) Template")
+    create_control(:stationery_pad_btn,         StationeryPadButton, dlg, :label=>"Metadata (IPTC) Template...")
     create_control(:preserve_exif_check,        CheckBox,       dlg, :label=>"Preserve EXIF information when possible", :checked=>true)
     create_renaming_controls(dlg)
 
@@ -183,7 +183,7 @@ module OperationsControlsLayout
       c.set_prev_right_pad(rp).inset(10,25,-10,-5).mark_base
 
       w1 = 30
-      c << @apply_iptc_check.layout(0, c.base, 170, eh)
+      c << @apply_iptc_check.layout(0, c.base, 215, eh)
         c << @stationery_pad_btn.layout(-180, c.base, -11, eh)
       c.pad_down(5).mark_base
       c << @preserve_exif_check.layout(0, c.base, 300, eh)
@@ -1062,7 +1062,7 @@ dbgprint "@prev_selected_settings_name = nil"
     Dlg::MessageBox.ok("Please enter a non-blank code.", Dlg::MessageBox::MB_ICONEXCLAMATION) and return if code.empty?
 
     begin
-      result = client.get_access_token(code, @ui)
+      result = client.get_access_token(code)
       @settings[client.name] = SettingsData.new(client.name, client.access_token, client.access_token_secret)
       add_account_to_dropdown(client.name)
       @ui.disable_code_entry("Verified #{client.name}")
@@ -1934,7 +1934,7 @@ class OAuthClient
     @bridge.launch_url(authorization_url)
   end
 
-  def get_access_token(verifier, ui)
+  def get_access_token(verifier)
     if smugmug_api?
       result = connection.set_tokens_from_post('oauth/1.0a/getAccessToken', verifier)
     else
@@ -1972,7 +1972,28 @@ class OAuth2Client < OAuthClient
   def fetch_request_token
     # Empty step for OAuth2!
   end
+
+  def get_access_token(verifier)
+    result = connection.set_tokens_from_post('oauth2/token', verifier)
+    @name = get_account_name(result)
+    [ connection.access_token, connection.access_token_secret, @name ]
+  end
 end # OAuth2Client
+
+
+class OAuth2Connection < OAuthConnection
+
+  protected
+  
+  def oauth_auth_header(method, uri, params = {})
+    if !authenticated?
+      auth = 'Basic ' + [@api_key + ':' + @api_secret].pack('m').chomp("\n")
+    else
+      auth = 'Bearer ' + @access_token
+    end
+    auth
+  end
+end # OAuth2Connection
 
 
 class OAuthUploadProtocol
@@ -2008,9 +2029,13 @@ class OAuthUploadProtocol
   def image_upload(local_filepath, remote_filename, is_retry, spec)
     @bridge.set_status_message "Uploading via secure connection..."
 
-    connection.set_tokens(spec.token, spec.token_secret)
-
-    connection_image_upload.set_tokens(spec.token, spec.token_secret) if defined?(connection_image_upload) # Flickr
+    if defined?(api)
+      connection.set_tokens(api.connection.access_token, api.connection.access_token_secret)
+      connection_image_upload.set_tokens(api.connection.access_token, api.connection.access_token_secret) if defined?(connection_image_upload)
+    else
+      connection.set_tokens(spec.token, spec.token_secret)
+      connection_image_upload.set_tokens(spec.token, spec.token_secret) if defined?(connection_image_upload)
+    end
 
     upload(local_filepath, remote_filename, spec)
 

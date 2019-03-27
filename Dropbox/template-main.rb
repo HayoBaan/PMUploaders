@@ -2,13 +2,16 @@
 # coding: utf-8
 ##############################################################################
 #
-# Copyright (c) 2014 Camera Bits, Inc.  All rights reserved.
+# Copyright (c) 2017 Camera Bits, Inc.  All rights reserved.
 #
-# Developed by Hayo Baan
+# Developed by Hayo Baan and Kirk A. Baker
 #
 ##############################################################################
 
 TEMPLATE_DISPLAY_NAME = "Dropbox"
+
+API_KEY     = __OAUTH_API_KEY__
+API_SECRET  = __OAUTH_API_SECRET__
 
 ##############################################################################
 
@@ -90,6 +93,11 @@ end
 class DropboxFileUploader < OAuthFileUploader
   include PM::FileUploaderTemplate  # This also registers the class as File Uploader
 
+  def initialize(pm_api_bridge, num_files, dlg_status_bridge, conn_settings_serializer)
+    @bridge = pm_api_bridge
+    super(pm_api_bridge, num_files, dlg_status_bridge, conn_settings_serializer)
+  end
+
   def self.file_uploader_ui_class
     DropboxFileUploaderUI
   end
@@ -143,9 +151,10 @@ end
 
 class DropboxConnection < OAuthConnection
   def initialize(pm_api_bridge)
-    @base_url = 'https://api.dropbox.com/1/'
-    @api_key = 'd0e5dgyire43exm'
-    @api_secret = 'oixbhu0cncz8j29'
+    @bridge = pm_api_bridge
+    @api_key = API_KEY
+    @api_secret = API_SECRET
+    @base_url = 'https://api.dropboxapi.com/'
     @callback_url = 'https://auth.camerabits.com/oauth/verifier/Dropbox'
     super
   end
@@ -186,7 +195,7 @@ class DropboxClient < OAuth2Client
   end
 
   def authorization_url
-    "https://www.dropbox.com/1/oauth2/authorize" +
+    "https://www.dropbox.com/oauth2/authorize" +
       connection.create_query_string_from_hash({
                                                  "response_type" => "code",
                                                  "client_id" => connection.api_key,
@@ -196,10 +205,17 @@ class DropboxClient < OAuth2Client
 
   def get_account_name(result)
     uid = result['uid']
-    response = connection.get('/account/info')
+    response = connection.post('2/users/get_current_account')
     connection.require_server_success_response(response)
-    result = JSON::parse(response.body)
-    result['display_name']
+    begin
+      result = JSON::parse(response.body)
+      dbgprint "account name data #{result.inspect}"
+      result['name']['display_name']
+    rescue JSON::ParserError => err
+      "ERROR: couldn't get name due to JSON ParserError"
+    rescue
+      "ERROR: couldn't get name"
+    end
   end
 
   # TODO: can this be moved to OAuth2Client?
@@ -213,7 +229,7 @@ end
 class DropboxConnectionImageUpload < DropboxConnection
   def initialize(pm_api_bridge)
     super
-    @base_url = 'https://api-content.dropbox.com/1/'
+    @base_url = 'https://content.dropboxapi.com/'
   end
 end
 
@@ -224,16 +240,22 @@ class DropboxUploadProtocol < OAuthUploadProtocol
 
   def upload(fname, remote_filename, spec)
     fcontents = @bridge.read_file_for_upload(fname)
-    headers = { "Content-Length" => fcontents.length.to_s }
 
     begin
       connection.unmute_transfer_status
-      query = connection.create_query_string_from_hash({ "overwrite" => spec.dropbox_overwrite, "autorename" => spec.dropbox_autorename })
       destination_path = spec.dropbox_folders[spec.unique_id]+remote_filename
-      response = connection.put('files_put/auto'+URI.escape(destination_path)+query, fcontents, headers)
+      mode_str = spec.dropbox_overwrite ? "overwrite" : "add"
+      headers = {
+        "Content-Length" => fcontents.length.to_s,
+        "Authorization" => "Bearer " + connection.access_token,
+        "Dropbox-API-Arg" => %<{"path": "#{destination_path}", "mode": "#{mode_str}", "autorename": #{spec.dropbox_autorename}, "mute": false }>,
+        "Content-Type" => "application/octet-stream"
+      }
+      dbglog "Uploading, headers are #{headers.inspect}"
+      response = connection.post('2/files/upload', fcontents, headers)
       connection.require_server_success_response(response)
       result = JSON::parse(response.body)
-      actual_destination_path = result['path']
+      actual_destination_path = result['path_display']
       dbglog "Uploaded file #{destination_path} renamed to #{actual_destination_path}" if actual_destination_path != destination_path
     ensure
       connection.mute_transfer_status
